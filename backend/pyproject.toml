@@ -1,0 +1,70 @@
+# =============================================================================
+# CodeLens AI — Backend Project Configuration
+# =============================================================================
+# Python project metadata following PEP 621.
+# =============================================================================
+
+[project]
+name = "codelens-ai-backend"
+version = "0.1.0"
+description = "CodeLens AI — AI-Powered Legacy Modernization Platform (FastAPI Backend)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "CodeLens AI Team" },
+]
+keywords = ["legacy", "modernization", "code-analysis", "ai", "fastapi"]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------------------
+# Ruff — Linter & Formatter
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+]
+ignore = ["E501"]  # line-too-long is handled by formatter
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ---------------------------------------------------------------------------
+# Mypy — Static Type Checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["arq.*", "tree_sitter.*", "tree_sitter_python.*", "tree_sitter_javascript.*", "tree_sitter_typescript.*", "tree_sitter_java.*", "passlib.*", "jose.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
