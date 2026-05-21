@@ -1,9 +1,9 @@
 """
-CodeLens AI — Modernization Score Model.
+Modernization Score Model
+=========================
 
-Stores the composite modernisation health score for an analysis run.
-The score is broken into seven sub-dimensions that together produce a
-weighted overall grade.
+Stores the composite readiness score (0-100) broken down into seven weighted
+dimensions.  There is exactly **one** score row per :class:`Analysis`.
 """
 
 from __future__ import annotations
@@ -18,52 +18,55 @@ from app.core.database import Base
 
 
 class ModernizationScore(Base):
-    """Composite modernisation readiness score for a project analysis.
+    """
+    Modernization readiness score for a single analysis run.
 
-    There is exactly **one** score row per analysis (enforced by the unique
-    constraint on ``analysis_id``).
+    Dimensions (weights):
+        code_health (25%), dependency_health (20%), architecture_quality (15%),
+        test_coverage (15%), documentation (10%), infrastructure_readiness (10%),
+        security_posture (5%).
+
+    Grades: A (≥80), B (60-79), C (40-59), D (20-39), F (<20).
     """
 
     __tablename__ = "modernization_scores"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("analyses.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,  # One score per analysis
+        unique=True,
         index=True,
     )
 
-    # ── Overall ──────────────────────────────────────────────────────────
-    overall_score: Mapped[float] = mapped_column(
-        Float, nullable=False, doc="Weighted composite score (0–100).",
-    )
-    grade: Mapped[str] = mapped_column(
-        String(2), nullable=False, doc="Letter grade: A, B, C, D, or F.",
-    )
+    overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+    grade: Mapped[str] = mapped_column(String(2), nullable=False)
 
-    # ── Sub-dimensions (each 0–100) ─────────────────────────────────────
-    code_health: Mapped[float] = mapped_column(Float, default=0.0)
-    dependency_health: Mapped[float] = mapped_column(Float, default=0.0)
-    architecture_quality: Mapped[float] = mapped_column(Float, default=0.0)
-    test_coverage: Mapped[float] = mapped_column(Float, default=0.0)
-    documentation: Mapped[float] = mapped_column(Float, default=0.0)
-    infrastructure_readiness: Mapped[float] = mapped_column(Float, default=0.0)
-    security_posture: Mapped[float] = mapped_column(Float, default=0.0)
-
-    # ── Priority areas ───────────────────────────────────────────────────
-    priority_areas: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True,
-        doc="Ordered list of improvement areas to focus on.",
+    # Individual dimension scores (0-100 each).
+    code_health: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dependency_health: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    architecture_quality: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    test_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    documentation: Mapped[float | None] = mapped_column(Float, nullable=True)
+    infrastructure_readiness: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    security_posture: Mapped[float | None] = mapped_column(
+        Float, nullable=True
     )
 
-    # ── Relationship ─────────────────────────────────────────────────────
-    analysis: Mapped["Analysis"] = relationship(  # noqa: F821
-        "Analysis", back_populates="score",
-    )
+    # Top areas that need attention, ordered by priority.
+    priority_areas: Mapped[list | None] = mapped_column(JSONB, default=list)
 
-    def __repr__(self) -> str:  # noqa: D401
-        return f"<ModernizationScore grade={self.grade!r} score={self.overall_score}>"
+    # ── Relationships ────────────────────────────────────────────────────
+    analysis = relationship("Analysis", back_populates="score")
+
+    def __repr__(self) -> str:
+        return f"<ModernizationScore {self.grade} ({self.overall_score})>"

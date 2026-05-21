@@ -1,145 +1,147 @@
 """
-CodeLens AI — Analysis Schemas.
+Analysis Schemas
+================
 
-Response schemas for analysis results: summary, file metrics, debt items,
-dependency findings, modernisation score, and repository structure.
+Response models for analysis results: summaries, file metrics, debt items,
+dependency findings, scores, and repository structure.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from app.schemas.common import OrmBase
 
 
-# ── Analysis ─────────────────────────────────────────────────────────────
-class AnalysisResponse(BaseModel):
-    """Full analysis run record."""
+# ── Analysis Summary ─────────────────────────────────────────────────────────
 
-    id: uuid.UUID
-    project_id: uuid.UUID
-    commit_sha: str | None = None
+
+class AnalysisResponse(OrmBase):
+    """Top-level analysis summary."""
+
+    id: UUID
+    project_id: UUID
+    commit_sha: Optional[str]
     status: str
-    summary: dict[str, Any] | None = None
-    overall_score: float | None = None
-    grade: str | None = None
-    sub_scores: dict[str, Any] | None = None
-    language_breakdown: dict[str, Any] | None = None
-    duration_seconds: float | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-
-    model_config = {"from_attributes": True}
+    overall_score: Optional[float]
+    grade: Optional[str]
+    summary: Optional[dict]
+    sub_scores: Optional[dict]
+    language_breakdown: Optional[dict]
+    duration_seconds: Optional[int]
+    started_at: datetime
+    completed_at: Optional[datetime]
 
 
-class AnalysisSummaryResponse(BaseModel):
-    """Condensed analysis summary for the dashboard."""
-
-    id: uuid.UUID
-    status: str
-    overall_score: float | None = None
-    grade: str | None = None
-    summary: dict[str, Any] | None = None
-    language_breakdown: dict[str, Any] | None = None
-    duration_seconds: float | None = None
-    completed_at: datetime | None = None
-
-    model_config = {"from_attributes": True}
+# ── Score ─────────────────────────────────────────────────────────────────────
 
 
-# ── File Metrics ─────────────────────────────────────────────────────────
-class FileMetricResponse(BaseModel):
-    """Per-file quality metrics."""
+class ScoreResponse(OrmBase):
+    """Modernization readiness score breakdown."""
 
-    id: uuid.UUID
+    overall_score: float
+    grade: str
+    sub_scores: dict  # code_health, dependency_health, etc.
+    priority_areas: Optional[list]
+
+
+# ── File Metrics ─────────────────────────────────────────────────────────────
+
+
+class FileMetricResponse(OrmBase):
+    """Per-file structural metrics."""
+
     file_path: str
-    language: str | None = None
+    language: Optional[str]
     loc: int
-    complexity: float
+    complexity: int
     max_nesting: int
     function_count: int
     class_count: int
     comment_ratio: float
-    issues: dict[str, Any] | None = None
     risk_level: str
+    issues: Optional[list]
 
-    model_config = {"from_attributes": True}
+
+class FileMetricListResponse(BaseModel):
+    """Paginated file metrics."""
+
+    files: list[FileMetricResponse]
+    total: int
 
 
-# ── Debt Items ───────────────────────────────────────────────────────────
-class DebtItemResponse(BaseModel):
-    """A single technical-debt finding."""
+# ── Debt Items ───────────────────────────────────────────────────────────────
 
-    id: uuid.UUID
+
+class DebtItemResponse(OrmBase):
+    """A single technical debt finding."""
+
+    id: UUID
     category: str
     severity: str
     title: str
-    description: str
-    file_path: str | None = None
-    line_start: int | None = None
-    line_end: int | None = None
-    suggestion: str | None = None
-    estimated_hours: float | None = None
-
-    model_config = {"from_attributes": True}
+    description: Optional[str]
+    file_path: Optional[str]
+    line_start: Optional[int]
+    line_end: Optional[int]
+    suggestion: Optional[str]
+    estimated_hours: Optional[float]
 
 
-# ── Dependency Findings ──────────────────────────────────────────────────
-class DependencyFindingResponse(BaseModel):
-    """Per-package dependency health."""
+class DebtListResponse(BaseModel):
+    """All debt items with summary counts."""
 
-    id: uuid.UUID
+    debt_items: list[DebtItemResponse]
+    total: int
+    by_severity: dict  # {"critical": 5, "high": 12, ...}
+
+
+# ── Dependency Findings ──────────────────────────────────────────────────────
+
+
+class DependencyFindingResponse(OrmBase):
+    """Health data for a single dependency."""
+
+    id: UUID
     package_name: str
-    current_version: str | None = None
-    latest_version: str | None = None
-    ecosystem: str
+    current_version: Optional[str]
+    latest_version: Optional[str]
+    ecosystem: Optional[str]
     days_behind: int
     is_deprecated: bool
     vulnerability_count: int
-    vulnerabilities: dict[str, Any] | None = None
+    vulnerabilities: Optional[list]
     risk_level: str
-    license: str | None = None
-
-    model_config = {"from_attributes": True}
+    license: Optional[str]
 
 
-# ── Score ────────────────────────────────────────────────────────────────
-class ScoreResponse(BaseModel):
-    """Modernisation readiness score breakdown."""
+class DependencyListResponse(BaseModel):
+    """All dependencies with summary."""
 
-    id: uuid.UUID
-    analysis_id: uuid.UUID
-    overall_score: float
-    grade: str
-    code_health: float
-    dependency_health: float
-    architecture_quality: float
-    test_coverage: float
-    documentation: float
-    infrastructure_readiness: float
-    security_posture: float
-    priority_areas: dict[str, Any] | None = None
-
-    model_config = {"from_attributes": True}
+    dependencies: list[DependencyFindingResponse]
+    total: int
+    summary: dict
 
 
-# ── Repository Structure ────────────────────────────────────────────────
-class StructureNode(BaseModel):
-    """A single node in the repository file tree."""
+# ── Repository Structure ─────────────────────────────────────────────────────
+
+
+class FileNode(BaseModel):
+    """A single node (file or directory) in the repository tree."""
 
     name: str
-    path: str
-    type: str = Field(description="'file' or 'directory'.")
-    language: str | None = None
-    loc: int | None = None
-    children: list["StructureNode"] | None = None
+    type: str  # "file" | "directory"
+    language: Optional[str] = None
+    loc: Optional[int] = None
+    risk_level: Optional[str] = None
+    children: Optional[list["FileNode"]] = None
 
 
 class StructureResponse(BaseModel):
-    """Full repository file tree structure."""
+    """Repository file tree."""
 
-    root: StructureNode
-    total_files: int
-    total_directories: int
+    tree: FileNode

@@ -1,5 +1,3 @@
 """
-CodeLens AI — Core Module.
-
-Contains configuration, database setup, Redis client, and security utilities.
+Core Package — Configuration, database, security, and Redis utilities.
 """

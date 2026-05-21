@@ -1,23 +1,25 @@
 """
-CodeLens AI — Async Database Setup.
+Async Database Engine & Session Factory
+========================================
 
-Creates the async SQLAlchemy engine, session factory, and the declarative
-``Base`` class used by all ORM models.  Also exposes the ``get_db()``
-dependency for FastAPI route injection.
+Provides the SQLAlchemy 2.0 async engine, scoped session maker, and the
+declarative ``Base`` class used by all ORM models.
 
-Usage in routes::
+Usage in FastAPI routes::
+
+    from app.core.database import get_db
 
     @router.get("/items")
     async def list_items(db: AsyncSession = Depends(get_db)):
-        ...
+        result = await db.execute(select(Item))
+        return result.scalars().all()
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -26,60 +28,47 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# ---------------------------------------------------------------------------
-# Engine — one per process, manages the connection pool.
-# ---------------------------------------------------------------------------
-engine: AsyncEngine = create_async_engine(
+# ── Engine ───────────────────────────────────────────────────────────────────
+# ``pool_pre_ping`` drops stale connections before they cause errors.
+engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.APP_DEBUG,          # Log SQL statements in dev
-    pool_size=10,                     # Maximum number of persistent connections
-    max_overflow=20,                  # Extra connections allowed beyond pool_size
-    pool_pre_ping=True,               # Verify connections before use
-    pool_recycle=300,                 # Recycle connections every 5 minutes
+    echo=settings.APP_DEBUG,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
 )
 
-# ---------------------------------------------------------------------------
-# Session factory — produces ``AsyncSession`` instances.
-# ---------------------------------------------------------------------------
-async_session_maker: async_sessionmaker[AsyncSession] = async_sessionmaker(
-    bind=engine,
+# ── Session factory ──────────────────────────────────────────────────────────
+async_session_maker = async_sessionmaker(
+    engine,
     class_=AsyncSession,
-    expire_on_commit=False,           # Keep attributes accessible after commit
+    expire_on_commit=False,
 )
 
 
-# ---------------------------------------------------------------------------
-# Declarative Base
-# ---------------------------------------------------------------------------
 class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy ORM models.
+    """
+    Declarative base for all SQLAlchemy ORM models.
 
-    Subclass this to define database tables.  The ``metadata`` attribute is
-    shared across all models and used by Alembic for migrations.
+    Every model in ``app.models`` inherits from this class so that Alembic can
+    auto-detect schema changes.
     """
 
     pass
 
 
-# ---------------------------------------------------------------------------
-# Dependency — yields an async session per-request.
-# ---------------------------------------------------------------------------
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that provides an async database session.
+    """
+    FastAPI dependency that yields an ``AsyncSession``.
 
-    Opens a session, yields it to the route handler, and automatically
-    closes it when the request completes (even on error).
-
-    Yields:
-        An ``AsyncSession`` bound to the application's engine.
+    The session is automatically closed when the request finishes, regardless
+    of whether an exception occurred.
     """
     async with async_session_maker() as session:
         try:
             yield session
-            # Commit any pending changes made by the route handler.
             await session.commit()
         except Exception:
-            # Roll back on any unhandled exception to leave the DB clean.
             await session.rollback()
             raise
         finally:

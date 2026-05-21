@@ -1,22 +1,27 @@
 """
-CodeLens AI — Security Utilities.
+Security Utilities
+==================
 
-Provides three key capabilities:
+Handles JWT token creation / verification, GitHub-token encryption, and the
+``get_current_user`` dependency used to protect API routes.
 
-1. **Token encryption** — Fernet symmetric encryption for storing GitHub
-   access tokens at rest in the database.
-2. **JWT creation / verification** — Stateless bearer tokens issued to
-   authenticated users.
-3. **Route protection** — A FastAPI dependency (``get_current_user``) that
-   validates the JWT and resolves the current ``User`` record.
+Token Flow
+----------
+1. Frontend authenticates via GitHub OAuth (Auth.js v5).
+2. Frontend calls ``POST /api/v1/auth/sync`` with the GitHub profile + token.
+3. Backend upserts the user, encrypts the GitHub token, and returns a JWT.
+4. Frontend sends the JWT on every subsequent request as
+   ``Authorization: Bearer <jwt>``.
+5. ``get_current_user()`` verifies the JWT and resolves the ``User`` object.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+from uuid import UUID
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -26,175 +31,130 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24 * 7  # Tokens valid for 7 days
+# ── Constants ────────────────────────────────────────────────────────────────
+_ALGORITHM = "HS256"
+_TOKEN_EXPIRE_DAYS = 30
 
-# HTTPBearer scheme — extracts the ``Authorization: Bearer <token>`` header.
-_bearer_scheme = HTTPBearer(auto_error=True)
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
-# ---------------------------------------------------------------------------
-# Token Encryption (Fernet)
-# ---------------------------------------------------------------------------
+# ── Token Encryption (Fernet / AES-128-CBC) ─────────────────────────────────
+
+
 class TokenEncryptor:
-    """Encrypts and decrypts sensitive tokens using Fernet symmetric encryption.
+    """
+    Encrypt / decrypt sensitive strings (e.g. GitHub access tokens) using
+    Fernet symmetric encryption.
 
-    The encryption key is read from ``settings.ENCRYPTION_KEY``.  If the key
-    is not set, a warning is logged and a fresh key is generated (this is
-    **only** acceptable during local development — in production the key must
-    be stable across restarts so that existing encrypted values remain
-    readable).
+    Args:
+        key: A URL-safe base64-encoded 32-byte key. Generate one with::
+
+            python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     """
 
-    def __init__(self, key: str | None = None) -> None:
-        """Initialise the encryptor.
-
-        Args:
-            key: A URL-safe base-64-encoded 32-byte key.  Defaults to
-                 ``settings.ENCRYPTION_KEY``.
-        """
-        raw_key = key or settings.ENCRYPTION_KEY
-        if not raw_key:
-            # Generate an ephemeral key for dev convenience (not persistent!)
-            raw_key = Fernet.generate_key().decode()
-        self._fernet = Fernet(raw_key.encode() if isinstance(raw_key, str) else raw_key)
+    def __init__(self, key: str) -> None:
+        self._cipher = Fernet(key.encode() if isinstance(key, str) else key)
 
     def encrypt(self, plaintext: str) -> str:
-        """Encrypt a plaintext string.
-
-        Args:
-            plaintext: The value to encrypt.
-
-        Returns:
-            The encrypted ciphertext as a URL-safe base-64 string.
-        """
-        return self._fernet.encrypt(plaintext.encode()).decode()
+        """Return the Fernet-encrypted ciphertext (URL-safe base64)."""
+        return self._cipher.encrypt(plaintext.encode()).decode()
 
     def decrypt(self, ciphertext: str) -> str:
-        """Decrypt a ciphertext string.
-
-        Args:
-            ciphertext: A value previously produced by :meth:`encrypt`.
-
-        Returns:
-            The original plaintext.
-
-        Raises:
-            ValueError: If the ciphertext is invalid or the key has changed.
-        """
-        try:
-            return self._fernet.decrypt(ciphertext.encode()).decode()
-        except InvalidToken as exc:
-            raise ValueError("Failed to decrypt token — key may have rotated") from exc
+        """Return the original plaintext from a Fernet ciphertext."""
+        return self._cipher.decrypt(ciphertext.encode()).decode()
 
 
-# Module-level singleton
-token_encryptor = TokenEncryptor()
+def get_encryptor() -> TokenEncryptor:
+    """Factory — returns a :class:`TokenEncryptor` with the app-wide key."""
+    if not settings.ENCRYPTION_KEY:
+        # Fallback for dev — NOT safe for production
+        return TokenEncryptor(Fernet.generate_key().decode())
+    return TokenEncryptor(settings.ENCRYPTION_KEY)
 
 
-# ---------------------------------------------------------------------------
-# JWT Helpers
-# ---------------------------------------------------------------------------
+# ── JWT Helpers ──────────────────────────────────────────────────────────────
+
+
 def create_access_token(
-    user_id: uuid.UUID,
-    email: str,
-    extra_claims: dict | None = None,
+    user_id: str | UUID,
+    *,
+    expires_delta: Optional[timedelta] = None,
 ) -> str:
-    """Create a signed JWT access token.
+    """
+    Create a signed JWT containing the ``user_id`` as the ``sub`` claim.
 
     Args:
-        user_id: The authenticated user's UUID (stored as ``sub``).
-        email: The user's email (included for convenience).
-        extra_claims: Optional additional claims to embed in the payload.
+        user_id: UUID of the authenticated user.
+        expires_delta: Custom expiration. Defaults to 30 days.
 
     Returns:
-        An encoded JWT string.
+        Encoded JWT string.
     """
     now = datetime.now(timezone.utc)
-    payload: dict = {
+    expire = now + (expires_delta or timedelta(days=_TOKEN_EXPIRE_DAYS))
+    payload = {
         "sub": str(user_id),
-        "email": email,
         "iat": now,
-        "exp": now + timedelta(hours=JWT_EXPIRATION_HOURS),
-        "jti": str(uuid.uuid4()),  # Unique token identifier
+        "exp": expire,
     }
-    if extra_claims:
-        payload.update(extra_claims)
-
-    return jwt.encode(payload, settings.AUTH_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, settings.AUTH_SECRET, algorithm=_ALGORITHM)
 
 
-def verify_token(token: str) -> dict:
-    """Decode and validate a JWT token.
-
-    Args:
-        token: The raw JWT string.
+def verify_token(token: str) -> Optional[str]:
+    """
+    Verify a JWT and return the ``sub`` (user_id) claim.
 
     Returns:
-        The decoded payload dict.
-
-    Raises:
-        HTTPException: If the token is expired, malformed, or the signature
-            does not match.
+        The user-id string, or ``None`` if the token is invalid / expired.
     """
     try:
-        payload: dict = jwt.decode(
-            token,
-            settings.AUTH_SECRET,
-            algorithms=[JWT_ALGORITHM],
+        payload = jwt.decode(
+            token, settings.AUTH_SECRET, algorithms=[_ALGORITHM]
         )
-        # Ensure the ``sub`` claim is present
-        if payload.get("sub") is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token payload missing 'sub' claim",
-            )
-        return payload
-    except JWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {exc}",
-        ) from exc
+        return payload.get("sub")
+    except JWTError:
+        return None
 
 
-# ---------------------------------------------------------------------------
-# FastAPI Dependency — Route Protection
-# ---------------------------------------------------------------------------
+# ── FastAPI Dependency ───────────────────────────────────────────────────────
+
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        _bearer_scheme
+    ),
     db: AsyncSession = Depends(get_db),
 ):
-    """FastAPI dependency that authenticates the current request.
-
-    Extracts the bearer token, validates the JWT, and returns the
-    corresponding ``User`` ORM instance.
-
-    Args:
-        credentials: Bearer token extracted by ``HTTPBearer``.
-        db: Async database session.
-
-    Returns:
-        The authenticated ``User`` model instance.
+    """
+    FastAPI dependency that extracts and validates the JWT from the
+    ``Authorization`` header, then loads the corresponding ``User`` model.
 
     Raises:
-        HTTPException: 401 if the token is invalid or the user does not exist.
+        HTTPException 401: if the token is missing, invalid, or the user
+            cannot be found.
     """
-    # Late import to avoid circular dependency (models → core → models)
+    # Import here to avoid circular dependency at module level.
     from app.models.user import User
 
-    payload = verify_token(credentials.credentials)
-    user_id = payload["sub"]
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+        )
 
-    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user_id = verify_token(credentials.credentials)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found for the provided token",
+            detail="User not found",
         )
 
     return user

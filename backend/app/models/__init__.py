@@ -1,8 +1,9 @@
 """
-CodeLens AI — Database Models Package.
+ORM Models Package
+==================
 
-Imports all SQLAlchemy ORM models so that ``alembic autogenerate`` discovers
-every table definition without requiring manual imports in the migration env.
+Imports every model so that ``Base.metadata`` knows about all tables when
+Alembic runs ``--autogenerate``.
 """
 
 from app.models.user import User  # noqa: F401

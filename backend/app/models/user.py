@@ -1,8 +1,9 @@
 """
-CodeLens AI — User Model.
+User Model
+==========
 
-Stores authenticated GitHub users.  The ``github_access_token`` field is
-Fernet-encrypted at rest (see :mod:`app.core.security.TokenEncryptor`).
+Represents an authenticated user, always created via GitHub OAuth.
+The ``github_access_token`` is **encrypted at rest** with Fernet.
 """
 
 from __future__ import annotations
@@ -18,76 +19,40 @@ from app.core.database import Base
 
 
 class User(Base):
-    """Represents a registered CodeLens AI user.
-
-    Users authenticate exclusively via GitHub OAuth.  Their GitHub access
-    token is stored **encrypted** so that the platform can clone private
-    repositories on their behalf.
-    """
+    """A platform user, identified by their GitHub account."""
 
     __tablename__ = "users"
 
-    # ── Primary key ──────────────────────────────────────────────────────
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        doc="Unique user identifier (UUID v4).",
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-
-    # ── Profile fields ───────────────────────────────────────────────────
     email: Mapped[str] = mapped_column(
-        String(320),
-        unique=True,
-        nullable=False,
-        index=True,
-        doc="User email from GitHub profile.",
+        String(255), unique=True, nullable=False, index=True
     )
-    name: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-        doc="Display name.",
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    github_id: Mapped[str | None] = mapped_column(
+        String(50), unique=True, nullable=True, index=True
     )
-    avatar_url: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        doc="URL of the user's GitHub avatar.",
-    )
-
-    # ── GitHub integration ───────────────────────────────────────────────
-    github_id: Mapped[int] = mapped_column(
-        unique=True,
-        nullable=False,
-        index=True,
-        doc="GitHub numeric user ID (stable across name changes).",
-    )
+    # Encrypted with Fernet — never stored in plaintext.
     github_access_token: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        doc="Fernet-encrypted GitHub OAuth access token.",
+        Text, nullable=True
     )
 
-    # ── Timestamps ───────────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        doc="Row creation timestamp (UTC).",
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-        doc="Last modification timestamp (UTC).",
     )
 
     # ── Relationships ────────────────────────────────────────────────────
-    projects: Mapped[list["Project"]] = relationship(  # noqa: F821
-        "Project",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        lazy="selectin",
+    projects = relationship(
+        "Project", back_populates="owner", cascade="all, delete-orphan"
     )
 
-    def __repr__(self) -> str:  # noqa: D401
-        """Readable representation for debugging."""
-        return f"<User id={self.id!s} email={self.email!r}>"
+    def __repr__(self) -> str:
+        return f"<User {self.email}>"

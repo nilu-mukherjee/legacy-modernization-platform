@@ -1,73 +1,60 @@
 """
-CodeLens AI — Project Schemas.
+Project Schemas
+===============
 
-Request/response schemas for project CRUD operations.
+Request and response models for project CRUD and analysis triggers.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Any
+from typing import Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, HttpUrl
+
+from app.schemas.common import OrmBase
 
 
 class ProjectCreate(BaseModel):
-    """Payload for creating a new project from a GitHub repository URL."""
+    """Request body for ``POST /projects``."""
 
-    repo_url: HttpUrl = Field(
-        description="Full HTTPS URL to the GitHub repository.",
-        examples=["https://github.com/owner/repo"],
-    )
-    name: str | None = Field(
-        default=None,
-        max_length=255,
-        description="Optional display name. Defaults to the repo name.",
-    )
+    repo_url: str  # GitHub repository URL
+    name: Optional[str] = None  # Defaults to repo name if omitted
 
 
-class ProjectUpdate(BaseModel):
-    """Payload for updating mutable project fields."""
+class ProjectResponse(OrmBase):
+    """Full project detail returned by the API."""
 
-    name: str | None = Field(default=None, max_length=255)
-    description: str | None = None
-    default_branch: str | None = None
-
-
-class ProjectResponse(BaseModel):
-    """Full project representation returned by the API."""
-
-    id: uuid.UUID
-    user_id: uuid.UUID
+    id: UUID
+    user_id: UUID
     name: str
     repo_url: str
-    repo_full_name: str | None = None
+    repo_full_name: Optional[str]
     default_branch: str
-    description: str | None = None
-    detected_languages: dict[str, Any] | None = None
+    description: Optional[str]
+    detected_languages: Optional[dict]
     total_files: int
     total_loc: int
     status: str
-    last_analyzed_at: datetime | None = None
+    last_analyzed_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class ProjectCreateResponse(OrmBase):
+    """Returned after creating a project — includes the triggered job ID."""
+
+    id: UUID
+    name: str
+    repo_url: str
+    status: str
+    job_id: Optional[UUID] = None
+    created_at: datetime
 
 
 class ProjectListResponse(BaseModel):
-    """Lightweight project summary used in list endpoints."""
+    """Paginated list of projects."""
 
-    id: uuid.UUID
-    name: str
-    repo_url: str
-    repo_full_name: str | None = None
-    status: str
-    detected_languages: dict[str, Any] | None = None
-    total_files: int
-    total_loc: int
-    last_analyzed_at: datetime | None = None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
+    projects: list[ProjectResponse]
+    total: int

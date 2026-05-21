@@ -1,42 +1,44 @@
 """
-CodeLens AI — Job Schemas.
+Job Schemas
+===========
 
-Response schemas for background job tracking endpoints.
+Response models for background job status and progress tracking.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Any
+from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.schemas.common import OrmBase
+
 
 class JobStepResponse(BaseModel):
-    """Representation of a single pipeline step within a job.
-
-    Used by the frontend to render a progress stepper.
-    """
+    """A single step in the analysis pipeline."""
 
     name: str
-    status: str  # pending | running | completed | failed
-    progress: float = 0.0
+    status: str  # completed | running | pending
 
 
-class JobResponse(BaseModel):
-    """Full background-job record."""
+class JobResponse(OrmBase):
+    """Background job status and progress."""
 
-    id: uuid.UUID
-    project_id: uuid.UUID
+    id: UUID
+    project_id: UUID
     job_type: str
     status: str
-    progress: float
-    current_step: str | None = None
-    error_message: str | None = None
-    result_metadata: dict[str, Any] | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    created_at: datetime
+    progress: int
+    current_step: Optional[str]
+    error_message: Optional[str]
+    result_metadata: Optional[dict]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
 
-    model_config = {"from_attributes": True}
+
+class JobDetailResponse(JobResponse):
+    """Extended job response with pipeline step breakdown."""
+
+    steps: list[JobStepResponse] = []
