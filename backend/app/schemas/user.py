@@ -1,59 +1,43 @@
 """
-CodeLens AI — User Schemas.
+User Schemas
+============
 
-Request/response schemas for user-related endpoints (GitHub OAuth sync,
-profile retrieval).
+Request and response models for user-related endpoints.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
+from typing import Optional
+from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr
+
+from app.schemas.common import OrmBase
 
 
 class UserSync(BaseModel):
-    """Payload sent by the frontend after a successful GitHub OAuth flow.
+    """Payload sent by the frontend after GitHub OAuth to sync the user."""
 
-    The backend uses this to create-or-update the local ``User`` record and
-    encrypt the access token for later use.
-    """
-
+    github_id: str
     email: EmailStr
-    name: str | None = None
-    avatar_url: str | None = None
-    github_id: int = Field(description="GitHub numeric user ID.")
-    github_access_token: str = Field(
-        description="Raw GitHub OAuth access token (will be encrypted before storage).",
-    )
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    access_token: str  # GitHub OAuth access token (will be encrypted)
 
 
-class UserCreate(BaseModel):
-    """Internal schema used when inserting a new user row.
+class UserResponse(OrmBase):
+    """Public user profile returned by ``GET /auth/me``."""
 
-    Equivalent to :class:`UserSync` but with the token already encrypted.
-    """
-
-    email: EmailStr
-    name: str | None = None
-    avatar_url: str | None = None
-    github_id: int
-    github_access_token: str | None = None  # Encrypted form
-
-
-class UserResponse(BaseModel):
-    """Public representation of a user returned by the API.
-
-    The ``github_access_token`` is **never** exposed to the client.
-    """
-
-    id: uuid.UUID
+    id: UUID
     email: str
-    name: str | None = None
-    avatar_url: str | None = None
-    github_id: int
+    name: Optional[str]
+    avatar_url: Optional[str]
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class UserSyncResponse(UserResponse):
+    """Response from ``POST /auth/sync`` — includes a JWT for the frontend."""
+
+    token: str

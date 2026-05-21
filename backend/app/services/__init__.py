@@ -1,5 +1,1 @@
-"""
-CodeLens AI — Services Package.
-
-Business-logic layer: ingestion, parsing, analysis, AI integration, scoring.
-"""
+"""Services Package — business logic layer."""

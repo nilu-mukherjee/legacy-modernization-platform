@@ -1,13 +1,14 @@
 """
-CodeLens AI — Analysis Models.
+Analysis Models
+===============
 
-Contains four tightly related models that store the results of a single
+Contains four tightly related models that store the *results* of a single
 analysis run:
 
-* :class:`Analysis` — top-level run record with status, score, and timing.
-* :class:`FileMetric` — per-file code-quality metrics.
+* :class:`Analysis` — top-level analysis record (one per run).
+* :class:`FileMetric` — per-file structural metrics extracted via tree-sitter.
 * :class:`DebtItem` — individual technical-debt findings.
-* :class:`DependencyFinding` — per-package dependency health results.
+* :class:`DependencyFinding` — per-package health / risk data.
 """
 
 from __future__ import annotations
@@ -15,27 +16,38 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, DateTime
+from sqlalchemy import (
+    Boolean,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    DateTime,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Analysis — top-level run
-# ═══════════════════════════════════════════════════════════════════════════
-class Analysis(Base):
-    """A single analysis run for a project.
+# ═══════════════════════════════════════════════════════════════════════════════
+# Analysis
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    Each time a project is (re-)analysed a new ``Analysis`` row is created.
-    The most recent completed row represents the current state of the codebase.
+
+class Analysis(Base):
+    """
+    A single analysis run against a project.
+
+    Every time a user triggers analysis, a new ``Analysis`` row is created.
+    The latest completed one is shown on the dashboard.
     """
 
     __tablename__ = "analyses"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -43,83 +55,70 @@ class Analysis(Base):
         nullable=False,
         index=True,
     )
+    commit_sha: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="running")
 
-    # ── Git context ──────────────────────────────────────────────────────
-    commit_sha: Mapped[str | None] = mapped_column(
-        String(40), nullable=True, doc="HEAD commit SHA at time of analysis.",
-    )
-
-    # ── Status & results ─────────────────────────────────────────────────
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending",
-        doc="pending | running | completed | failed",
-    )
-    summary: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, doc="AI-generated executive summary.",
-    )
-    overall_score: Mapped[float | None] = mapped_column(
-        Float, nullable=True, doc="Composite modernisation score (0–100).",
-    )
-    grade: Mapped[str | None] = mapped_column(
-        String(2), nullable=True, doc="Letter grade derived from overall_score.",
-    )
-    sub_scores: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, doc="Breakdown of sub-dimension scores.",
-    )
+    # High-level summary stored as JSON for flexibility.
+    summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    grade: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    sub_scores: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     language_breakdown: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, doc="Lines-of-code per language.",
+        JSONB, nullable=True
     )
 
-    # ── Timing ───────────────────────────────────────────────────────────
-    duration_seconds: Mapped[float | None] = mapped_column(
-        Float, nullable=True,
+    duration_seconds: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
     )
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True), nullable=True
     )
 
     # ── Relationships ────────────────────────────────────────────────────
-    project: Mapped["Project"] = relationship(  # noqa: F821
-        "Project", back_populates="analyses",
+    project = relationship("Project", back_populates="analyses")
+    file_metrics = relationship(
+        "FileMetric", back_populates="analysis", cascade="all, delete-orphan"
     )
-    file_metrics: Mapped[list["FileMetric"]] = relationship(
-        "FileMetric", back_populates="analysis", cascade="all, delete-orphan",
+    debt_items = relationship(
+        "DebtItem", back_populates="analysis", cascade="all, delete-orphan"
     )
-    debt_items: Mapped[list["DebtItem"]] = relationship(
-        "DebtItem", back_populates="analysis", cascade="all, delete-orphan",
+    dependency_findings = relationship(
+        "DependencyFinding",
+        back_populates="analysis",
+        cascade="all, delete-orphan",
     )
-    dependency_findings: Mapped[list["DependencyFinding"]] = relationship(
-        "DependencyFinding", back_populates="analysis", cascade="all, delete-orphan",
+    recommendations = relationship(
+        "Recommendation",
+        back_populates="analysis",
+        cascade="all, delete-orphan",
     )
-    recommendations: Mapped[list["Recommendation"]] = relationship(  # noqa: F821
-        "Recommendation", back_populates="analysis", cascade="all, delete-orphan",
-    )
-    score: Mapped["ModernizationScore | None"] = relationship(  # noqa: F821
-        "ModernizationScore", back_populates="analysis", uselist=False,
+    score = relationship(
+        "ModernizationScore",
+        back_populates="analysis",
+        uselist=False,
         cascade="all, delete-orphan",
     )
 
-    def __repr__(self) -> str:  # noqa: D401
-        return f"<Analysis id={self.id!s} status={self.status!r}>"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FileMetric
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# FileMetric — per-file quality metrics
-# ═══════════════════════════════════════════════════════════════════════════
 class FileMetric(Base):
-    """Per-file code-quality metrics extracted by the AST parser.
-
-    Stores complexity, LOC, function/class counts, and identified issues
-    for a single source file.
+    """
+    Structural metrics for a single source file, extracted by the
+    tree-sitter AST parser.
     """
 
     __tablename__ = "file_metrics"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -127,58 +126,38 @@ class FileMetric(Base):
         nullable=False,
         index=True,
     )
-
-    # ── File info ────────────────────────────────────────────────────────
-    file_path: Mapped[str] = mapped_column(
-        Text, nullable=False, doc="Path relative to the repository root.",
-    )
-    language: Mapped[str | None] = mapped_column(
-        String(50), nullable=True,
-    )
-
-    # ── Metrics ──────────────────────────────────────────────────────────
-    loc: Mapped[int] = mapped_column(Integer, default=0, doc="Lines of code.")
-    complexity: Mapped[float] = mapped_column(
-        Float, default=0.0, doc="Average cyclomatic complexity.",
-    )
-    max_nesting: Mapped[int] = mapped_column(
-        Integer, default=0, doc="Maximum nesting depth.",
-    )
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    language: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    loc: Mapped[int] = mapped_column(Integer, default=0)
+    complexity: Mapped[int] = mapped_column(Integer, default=0)
+    max_nesting: Mapped[int] = mapped_column(Integer, default=0)
     function_count: Mapped[int] = mapped_column(Integer, default=0)
     class_count: Mapped[int] = mapped_column(Integer, default=0)
-    comment_ratio: Mapped[float] = mapped_column(
-        Float, default=0.0, doc="Comments / total lines (0–1).",
-    )
+    comment_ratio: Mapped[float] = mapped_column(Float, default=0.0)
 
-    # ── Issues & risk ────────────────────────────────────────────────────
-    issues: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, doc="List of per-file issues (warnings).",
-    )
-    risk_level: Mapped[str] = mapped_column(
-        String(20), default="low", doc="low | medium | high | critical",
-    )
+    # Per-file issues as a JSON array (e.g. rule violations found).
+    issues: Mapped[list | None] = mapped_column(JSONB, default=list)
+    risk_level: Mapped[str] = mapped_column(String(10), default="low")
 
-    # ── Relationship ─────────────────────────────────────────────────────
-    analysis: Mapped["Analysis"] = relationship("Analysis", back_populates="file_metrics")
-
-    def __repr__(self) -> str:  # noqa: D401
-        return f"<FileMetric file={self.file_path!r} risk={self.risk_level!r}>"
+    # ── Relationships ────────────────────────────────────────────────────
+    analysis = relationship("Analysis", back_populates="file_metrics")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# DebtItem — technical-debt findings
-# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# DebtItem
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
 class DebtItem(Base):
-    """A single technical-debt issue detected in the codebase.
-
-    Debt items are categorised (complexity, style, architecture, security, …)
-    and assigned an estimated remediation time.
+    """
+    A single technical-debt finding (code smell, anti-pattern, or security
+    issue) detected by the rule engine or AI pipeline.
     """
 
     __tablename__ = "debt_items"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -186,49 +165,39 @@ class DebtItem(Base):
         nullable=False,
         index=True,
     )
-
-    # ── Classification ───────────────────────────────────────────────────
-    category: Mapped[str] = mapped_column(
-        String(50), nullable=False,
-        doc="complexity | style | architecture | security | documentation | testing",
-    )
-    severity: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="medium",
-        doc="low | medium | high | critical",
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-
-    # ── Location ─────────────────────────────────────────────────────────
+    # Category: complexity | duplication | style | security | architecture | documentation
+    category: Mapped[str] = mapped_column(String(30), nullable=False)
+    # Severity: low | medium | high | critical
+    severity: Mapped[str] = mapped_column(String(10), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     line_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    # ── Remediation ──────────────────────────────────────────────────────
     suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)
-    estimated_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    estimated_hours: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
 
-    # ── Relationship ─────────────────────────────────────────────────────
-    analysis: Mapped["Analysis"] = relationship("Analysis", back_populates="debt_items")
-
-    def __repr__(self) -> str:  # noqa: D401
-        return f"<DebtItem title={self.title!r} severity={self.severity!r}>"
+    # ── Relationships ────────────────────────────────────────────────────
+    analysis = relationship("Analysis", back_populates="debt_items")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# DependencyFinding — per-package dependency health
-# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# DependencyFinding
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
 class DependencyFinding(Base):
-    """Health status of a single dependency package.
-
-    Includes version lag, deprecation status, known vulnerabilities, and
-    licence information.
+    """
+    Health and risk data for a single third-party package discovered in the
+    repository (e.g. from ``package.json`` or ``requirements.txt``).
     """
 
     __tablename__ = "dependency_findings"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -236,34 +205,21 @@ class DependencyFinding(Base):
         nullable=False,
         index=True,
     )
-
-    # ── Package info ─────────────────────────────────────────────────────
     package_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    current_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    latest_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    ecosystem: Mapped[str] = mapped_column(
-        String(50), nullable=False, doc="npm | pypi | maven | etc.",
+    current_version: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
     )
-
-    # ── Health indicators ────────────────────────────────────────────────
+    latest_version: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    # Ecosystem: npm | pip | maven | nuget | cargo | go
+    ecosystem: Mapped[str | None] = mapped_column(String(20), nullable=True)
     days_behind: Mapped[int] = mapped_column(Integer, default=0)
-    is_deprecated: Mapped[bool] = mapped_column(default=False)
+    is_deprecated: Mapped[bool] = mapped_column(Boolean, default=False)
     vulnerability_count: Mapped[int] = mapped_column(Integer, default=0)
-    vulnerabilities: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    # ── Risk & licence ───────────────────────────────────────────────────
-    risk_level: Mapped[str] = mapped_column(
-        String(20), default="low", doc="low | medium | high | critical",
-    )
+    vulnerabilities: Mapped[list | None] = mapped_column(JSONB, default=list)
+    risk_level: Mapped[str] = mapped_column(String(10), default="low")
     license: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # ── Relationship ─────────────────────────────────────────────────────
-    analysis: Mapped["Analysis"] = relationship(
-        "Analysis", back_populates="dependency_findings",
-    )
-
-    def __repr__(self) -> str:  # noqa: D401
-        return (
-            f"<DependencyFinding pkg={self.package_name!r} "
-            f"risk={self.risk_level!r}>"
-        )
+    # ── Relationships ────────────────────────────────────────────────────
+    analysis = relationship("Analysis", back_populates="dependency_findings")
