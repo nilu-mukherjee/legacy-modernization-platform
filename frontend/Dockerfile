@@ -35,9 +35,14 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Directories need execute bit to be traversable; files need only read.
+# No write bit anywhere — standalone output is immutable at runtime.
+RUN find /app -type d -exec chmod 555 {} + \
+ && find /app -type f -exec chmod 444 {} +
 
 USER nextjs
 EXPOSE 3000

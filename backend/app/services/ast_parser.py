@@ -718,7 +718,7 @@ _JAVA_CLASS_RE = re.compile(
 )
 _JAVA_BRANCH_RE = re.compile(r"\b(if|else\s+if|for|while|catch|case)\b|&&|\|\|")
 # Compiled once; avoids repeated compilation and documents the pattern clearly.
-_JS_METHOD_SIGNATURE_RE = re.compile(r"\w+\s*\([^)]*\)\s*\{")
+_JS_METHOD_SIGNATURE_RE = re.compile(r"\w+\([^)]*\)\s*\{")
 # Extracts the parameter list from a function/method signature line.
 _PARAM_LIST_RE = re.compile(r"\(([^)]*)\)")
 
