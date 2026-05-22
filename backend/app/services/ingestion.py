@@ -31,35 +31,114 @@ SKIP_DIRS: set[str] = {
 
 # Map file extensions to human-readable language names.
 LANGUAGE_MAP: dict[str, str] = {
+    # Python
     ".py": "python",
+    ".pyw": "python",
+    # JavaScript
     ".js": "javascript",
     ".jsx": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    # TypeScript
     ".ts": "typescript",
     ".tsx": "typescript",
+    # Java
     ".java": "java",
+    # Go
     ".go": "go",
-    ".rb": "ruby",
+    # Rust
     ".rs": "rust",
+    # Ruby
+    ".rb": "ruby",
+    ".rake": "ruby",
+    ".gemspec": "ruby",
+    # C#
     ".cs": "csharp",
+    # C++
     ".cpp": "cpp",
+    ".cxx": "cpp",
+    ".cc": "cpp",
+    ".hpp": "cpp",
+    ".hxx": "cpp",
+    # C
     ".c": "c",
+    ".h": "c",
+    # PHP
     ".php": "php",
+    ".phtml": "php",
+    ".php5": "php",
+    # Swift
     ".swift": "swift",
+    # Kotlin
     ".kt": "kotlin",
+    ".kts": "kotlin",
+    # Scala
     ".scala": "scala",
+    ".sc": "scala",
+    # Dart
+    ".dart": "dart",
+    # VB.NET
+    ".vb": "vbnet",
+    # VB6
+    ".bas": "vb6",
+    ".frm": "vb6",
+    # Objective-C
+    ".m": "objectivec",
+    ".mm": "objectivec",
+    # COBOL
+    ".cob": "cobol",
+    ".cbl": "cobol",
+    ".cpy": "cobol",
+    # ABAP
+    ".abap": "abap",
+    # Apex (Salesforce)
+    ".cls": "apex",
+    ".trigger": "apex",
+    ".apex": "apex",
+    # JCL
+    ".jcl": "jcl",
+    # RPG (IBM)
+    ".rpgle": "rpg",
+    ".rpg": "rpg",
+    ".sqlrpgle": "rpg",
+    # PL/SQL
+    ".pls": "plsql",
+    ".pkb": "plsql",
+    ".pks": "plsql",
+    ".prc": "plsql",
+    ".fnc": "plsql",
+    # PL/I
+    ".pli": "pli",
+    ".pl1": "pli",
+    # T-SQL / SQL
     ".sql": "sql",
-    ".ipynb": "jupyter notebook",
+    ".tsql": "sql",
+    # Terraform (HCL)
+    ".tf": "terraform",
+    ".tfvars": "terraform",
+    # Bicep (Azure Resource Manager)
+    ".bicep": "bicep",
+    # Helm templates
+    ".tpl": "helm",
+    # Shell
     ".sh": "shell",
     ".bash": "shell",
+    ".zsh": "shell",
+    ".fish": "shell",
+    # Jupyter
+    ".ipynb": "jupyter notebook",
+    # Data / markup (inventoried but not debt-scanned)
     ".yaml": "yaml",
     ".yml": "yaml",
     ".json": "json",
     ".xml": "xml",
     ".html": "html",
+    ".htm": "html",
     ".css": "css",
     ".scss": "scss",
     ".sass": "scss",
     ".md": "markdown",
+    # Other
     ".mako": "mako",
     ".mak": "mako",
     ".mk": "makefile",

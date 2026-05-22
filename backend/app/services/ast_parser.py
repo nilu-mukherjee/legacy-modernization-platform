@@ -5,7 +5,9 @@ AST Parser Service
 Multi-language AST analysis using tree-sitter. Extracts function / class
 metrics, cyclomatic complexity, and nesting depth.
 
-Supported languages: Python, JavaScript, TypeScript, Java.
+Supported languages (tree-sitter): Python, JavaScript, TypeScript, Java, Go,
+Rust, Ruby, C, C++, C#, PHP, Kotlin, Swift, Dart, Scala.
+All other languages fall back to regex-based heuristics.
 
 Falls back to regex-based analysis when tree-sitter grammars are not
 available so the pipeline keeps running in environments that haven't
@@ -59,6 +61,39 @@ def _get_language(lang: str) -> Any | None:
             language_obj = Language(m.language_tsx())
         elif lang == "java":
             import tree_sitter_java as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "go":
+            import tree_sitter_go as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "rust":
+            import tree_sitter_rust as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "ruby":
+            import tree_sitter_ruby as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "c":
+            import tree_sitter_c as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "cpp":
+            import tree_sitter_cpp as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "csharp":
+            import tree_sitter_c_sharp as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "php":
+            import tree_sitter_php as m  # type: ignore[import]
+            language_obj = Language(m.language_php())
+        elif lang == "kotlin":
+            import tree_sitter_kotlin as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "swift":
+            import tree_sitter_swift as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "dart":
+            import tree_sitter_dart as m  # type: ignore[import]
+            language_obj = Language(m.language())
+        elif lang == "scala":
+            import tree_sitter_scala as m  # type: ignore[import]
             language_obj = Language(m.language())
     except (ImportError, Exception):
         language_obj = None
@@ -183,6 +218,17 @@ _FUNCTION_NODES: dict[str, set[str]] = {
         "method_definition",
     },
     "java": {"method_declaration", "constructor_declaration"},
+    "go": {"function_declaration", "method_declaration", "func_literal"},
+    "rust": {"function_item", "closure_expression"},
+    "ruby": {"method", "singleton_method", "block"},
+    "c": {"function_definition"},
+    "cpp": {"function_definition", "lambda_expression"},
+    "csharp": {"method_declaration", "constructor_declaration", "local_function_statement", "lambda_expression"},
+    "php": {"function_definition", "method_declaration", "arrow_function"},
+    "kotlin": {"function_declaration", "anonymous_function", "lambda_literal"},
+    "swift": {"function_declaration", "closure_expression"},
+    "dart": {"function_signature", "function_expression"},
+    "scala": {"function_definition", "val_definition"},
 }
 
 _CLASS_NODES: dict[str, set[str]] = {
@@ -197,6 +243,17 @@ _CLASS_NODES: dict[str, set[str]] = {
         "enum_declaration",
         "record_declaration",
     },
+    "go": {"type_spec"},
+    "rust": {"struct_item", "enum_item", "impl_item", "trait_item"},
+    "ruby": {"class", "module", "singleton_class"},
+    "c": {"struct_specifier", "union_specifier", "enum_specifier"},
+    "cpp": {"class_specifier", "struct_specifier", "enum_specifier"},
+    "csharp": {"class_declaration", "interface_declaration", "struct_declaration", "record_declaration"},
+    "php": {"class_declaration", "interface_declaration", "trait_declaration", "enum_declaration"},
+    "kotlin": {"class_declaration", "object_declaration", "interface_declaration"},
+    "swift": {"class_declaration", "struct_declaration", "enum_declaration", "protocol_declaration"},
+    "dart": {"class_definition"},
+    "scala": {"class_definition", "object_definition", "trait_definition"},
 }
 
 
