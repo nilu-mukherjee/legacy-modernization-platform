@@ -111,7 +111,7 @@ async def http_client(mock_user: User) -> AsyncClient:
         patch("app.main.close_arq", new_callable=AsyncMock),
     ):
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app), base_url="https://test"
         ) as client:
             yield client
 
@@ -130,6 +130,6 @@ async def unauthenticated_client() -> AsyncClient:
         patch("app.main.close_arq", new_callable=AsyncMock),
     ):
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app), base_url="https://test"
         ) as client:
             yield client
