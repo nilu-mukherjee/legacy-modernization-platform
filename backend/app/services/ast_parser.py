@@ -625,8 +625,13 @@ def _estimate_nesting_python(lines: list[str]) -> int:
 
 # ── JS/TS regex parser ────────────────────────────────────────────────────────
 
+# Bounded quantifiers cap worst-case backtracking to a constant regardless of input length.
+# Identifier names {1,80}, whitespace runs {0,8}, arrow param list {0,256} — generous
+# practical maxima for real JS/TS. Lines exceeding _MAX_REGEX_LINE_LEN are skipped upstream.
 _JS_FUNC_RE = re.compile(
-    r"(?:function\s+(\w+)\s*\(|(\w+)\s*[=:]\s*(?:async\s+)?(?:function|\([^)]*\)\s*=>))"
+    r"(?:function\s{1,8}(\w{1,80})\s{0,8}\("
+    r"|(\w{1,80})\s{0,8}[=:]\s{0,8}(?:async\s{1,8})?"
+    r"(?:function|\([^)]{0,256}\)\s{0,8}=>))"
 )
 _JS_CLASS_RE = re.compile(r"\bclass\s+(\w+)")
 _JS_BRANCH_RE = re.compile(
