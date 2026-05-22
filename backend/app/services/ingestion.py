@@ -48,7 +48,9 @@ LANGUAGE_MAP: dict[str, str] = {
     ".kt": "kotlin",
     ".scala": "scala",
     ".sql": "sql",
+    ".ipynb": "jupyter notebook",
     ".sh": "shell",
+    ".bash": "shell",
     ".yaml": "yaml",
     ".yml": "yaml",
     ".json": "json",
@@ -249,7 +251,7 @@ def build_file_inventory(repo_path: str) -> Inventory:
 
             if language:
                 inventory.languages[language] = (
-                    inventory.languages.get(language, 0) + 1
+                    inventory.languages.get(language, 0) + loc
                 )
 
     return inventory
@@ -257,13 +259,13 @@ def build_file_inventory(repo_path: str) -> Inventory:
 
 def detect_languages(inventory: Inventory) -> dict[str, int]:
     """
-    Return a mapping of language → file count, sorted by count descending.
+    Return a mapping of language → LOC, sorted by LOC descending.
 
-    Filters out non-source languages (json, yaml, markdown, etc.).
+    Filters out data/config formats that GitHub also excludes from breakdowns.
     """
     source_langs = {
         k: v
         for k, v in inventory.languages.items()
-        if k not in ("json", "xml", "yaml", "markdown", "html", "css", "scss")
+        if k not in ("json", "xml", "yaml", "markdown", "css", "scss")
     }
     return dict(sorted(source_langs.items(), key=lambda x: x[1], reverse=True))

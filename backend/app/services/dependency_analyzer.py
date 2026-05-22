@@ -143,7 +143,8 @@ async def check_npm_versions(packages: list[Dependency]) -> list[DependencyResul
                     latest_info = data.get("versions", {}).get(
                         result.latest_version or "", {}
                     )
-                    result.license = latest_info.get("license") or data.get("license")
+                    raw_license = latest_info.get("license") or data.get("license")
+                    result.license = (raw_license or "")[:490] or None
 
                     # Calculate days behind.
                     if result.latest_version and pkg.current_version:
@@ -191,7 +192,8 @@ async def check_pypi_versions(packages: list[Dependency]) -> list[DependencyResu
                     data = resp.json()
                     info = data.get("info", {})
                     result.latest_version = info.get("version")
-                    result.license = info.get("license")
+                    raw_license = info.get("license")
+                    result.license = (raw_license or "")[:490] or None
 
                     # Calculate days behind using release dates.
                     releases = data.get("releases", {})

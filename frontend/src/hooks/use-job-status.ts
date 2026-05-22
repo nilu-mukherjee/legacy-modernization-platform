@@ -14,7 +14,7 @@
 
 import { useMemo } from "react";
 import { usePolling } from "@/hooks/use-polling";
-import { api } from "@/lib/api-client";
+import { getJob } from "@/lib/api-client";
 import { JOB_POLL_INTERVAL_MS } from "@/lib/constants";
 import type { Job } from "@/types";
 
@@ -56,12 +56,27 @@ export function useJobStatus(
 ): UseJobStatusResult {
   const fetcher = useMemo(() => {
     if (!jobId) {
-      return () =>
-        Promise.resolve({
-          data: null as unknown as Job,
-        });
+      return () => Promise.resolve({ data: null as unknown as Job });
     }
-    return () => api.getJobStatus(jobId);
+    return () =>
+      getJob(jobId).then((raw) => ({
+        data: {
+          id: raw.id,
+          type: "analysis" as Job["type"],
+          status: raw.status as Job["status"],
+          progress: raw.progress,
+          currentStep: raw.current_step,
+          steps: raw.steps.map((s) => ({
+            name: s.name,
+            status: s.status as Job["steps"][number]["status"],
+            startedAt: null,
+            completedAt: null,
+          })),
+          createdAt: "",
+          completedAt: null,
+          error: null,
+        } satisfies Job,
+      }));
   }, [jobId]);
 
   const {

@@ -207,10 +207,10 @@ class DependencyFinding(Base):
     )
     package_name: Mapped[str] = mapped_column(String(255), nullable=False)
     current_version: Mapped[str | None] = mapped_column(
-        String(50), nullable=True
+        String(200), nullable=True
     )
     latest_version: Mapped[str | None] = mapped_column(
-        String(50), nullable=True
+        String(200), nullable=True
     )
     # Ecosystem: npm | pip | maven | nuget | cargo | go
     ecosystem: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -219,7 +219,7 @@ class DependencyFinding(Base):
     vulnerability_count: Mapped[int] = mapped_column(Integer, default=0)
     vulnerabilities: Mapped[list | None] = mapped_column(JSONB, default=list)
     risk_level: Mapped[str] = mapped_column(String(10), default="low")
-    license: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    license: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # ── Relationships ────────────────────────────────────────────────────
     analysis = relationship("Analysis", back_populates="dependency_findings")

@@ -159,32 +159,50 @@ async def get_file_metrics(
 )
 async def get_debt_items(
     project_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     severity: str | None = None,
     category: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all technical debt items for the latest analysis."""
+    """Get paginated technical debt items for the latest analysis."""
     analysis = await _get_latest_analysis(project_id, current_user, db)
 
-    q = select(DebtItem).where(DebtItem.analysis_id == analysis.id)
+    base = [DebtItem.analysis_id == analysis.id]
     if severity:
-        q = q.where(DebtItem.severity == severity)
+        base.append(DebtItem.severity == severity)
     if category:
-        q = q.where(DebtItem.category == category)
+        base.append(DebtItem.category == category)
 
-    result = await db.execute(q.order_by(DebtItem.severity.desc()))
-    items = [
-        DebtItemResponse.model_validate(d) for d in result.scalars().all()
-    ]
+    total = (await db.execute(
+        select(func.count()).select_from(DebtItem).where(*base)
+    )).scalar() or 0
 
-    # Build severity summary.
-    by_severity: dict[str, int] = {}
-    for item in items:
-        by_severity[item.severity] = by_severity.get(item.severity, 0) + 1
+    sev_rows = (await db.execute(
+        select(DebtItem.severity, func.count(DebtItem.id).label("cnt"))
+        .where(*base)
+        .group_by(DebtItem.severity)
+    )).all()
+    by_severity = {r.severity: r.cnt for r in sev_rows}
+
+    # by_category always reflects full dataset (no category filter) for chip counts.
+    cat_rows = (await db.execute(
+        select(DebtItem.category, func.count(DebtItem.id).label("cnt"))
+        .where(DebtItem.analysis_id == analysis.id)
+        .group_by(DebtItem.category)
+    )).all()
+    by_category = {r.category: r.cnt for r in cat_rows}
+
+    result = await db.execute(
+        select(DebtItem).where(*base)
+        .order_by(DebtItem.severity.desc())
+        .offset(skip).limit(limit)
+    )
+    items = [DebtItemResponse.model_validate(d) for d in result.scalars().all()]
 
     return DebtListResponse(
-        debt_items=items, total=len(items), by_severity=by_severity
+        debt_items=items, total=total, by_severity=by_severity, by_category=by_category
     )
 
 
@@ -194,34 +212,56 @@ async def get_debt_items(
 )
 async def get_dependencies(
     project_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get dependency health findings for the latest analysis."""
+    """Get paginated dependency health findings for the latest analysis."""
     analysis = await _get_latest_analysis(project_id, current_user, db)
 
-    result = await db.execute(
-        select(DependencyFinding)
-        .where(DependencyFinding.analysis_id == analysis.id)
-        .order_by(DependencyFinding.days_behind.desc())
-    )
-    deps = [
-        DependencyFindingResponse.model_validate(d)
-        for d in result.scalars().all()
-    ]
+    where = DependencyFinding.analysis_id == analysis.id
 
-    by_risk: dict[str, int] = {}
-    for d in deps:
-        by_risk[d.risk_level] = by_risk.get(d.risk_level, 0) + 1
+    total = (await db.execute(
+        select(func.count()).select_from(DependencyFinding).where(where)
+    )).scalar() or 0
+
+    # Aggregate summary over ALL deps (not just the page).
+    risk_rows = (await db.execute(
+        select(DependencyFinding.risk_level, func.count(DependencyFinding.id).label("cnt"))
+        .where(where)
+        .group_by(DependencyFinding.risk_level)
+    )).all()
+    by_risk = {r.risk_level: r.cnt for r in risk_rows}
+
+    outdated = (await db.execute(
+        select(func.count()).select_from(DependencyFinding)
+        .where(where, DependencyFinding.days_behind > 180)
+    )).scalar() or 0
+    deprecated = (await db.execute(
+        select(func.count()).select_from(DependencyFinding)
+        .where(where, DependencyFinding.is_deprecated.is_(True))
+    )).scalar() or 0
+    vulnerable = (await db.execute(
+        select(func.count()).select_from(DependencyFinding)
+        .where(where, DependencyFinding.vulnerability_count > 0)
+    )).scalar() or 0
+
+    result = await db.execute(
+        select(DependencyFinding).where(where)
+        .order_by(DependencyFinding.days_behind.desc())
+        .offset(skip).limit(limit)
+    )
+    deps = [DependencyFindingResponse.model_validate(d) for d in result.scalars().all()]
 
     return DependencyListResponse(
         dependencies=deps,
-        total=len(deps),
+        total=total,
         summary={
-            "total_deps": len(deps),
-            "outdated": sum(1 for d in deps if d.days_behind > 180),
-            "deprecated": sum(1 for d in deps if d.is_deprecated),
-            "vulnerable": sum(1 for d in deps if d.vulnerability_count > 0),
+            "total_deps": total,
+            "outdated": outdated,
+            "deprecated": deprecated,
+            "vulnerable": vulnerable,
             "by_risk": by_risk,
         },
     )

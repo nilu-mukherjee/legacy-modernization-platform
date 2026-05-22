@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E '^\\(dashboard|login\\)$|^[^.]*$')",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(Remove-Item *)",
+      "Bash(docker compose *)",
+      "Bash(Start-Sleep -Seconds 8)",
+      "Bash(docker exec *)",
+      "Bash(xargs grep -l \"arq_pool\\\\|arq\\\\|enqueue\")",
+      "Bash(npx tsc *)",
+      "Bash(Write-Host \"done\")",
+      "Bash(gh api *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm list *)",
+      "Bash(node -e \"const d=require\\('/dev/stdin'\\);console.log\\(JSON.stringify\\({main:d.main,module:d.module,exports:d.exports},null,2\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const d=JSON.parse\\(fs.readFileSync\\('C:/Dev/projects/ai-ml/legacy-modernization-platform/frontend/node_modules/jspdf/package.json','utf8'\\)\\);console.log\\(JSON.stringify\\({main:d.main,module:d.module,exports:d.exports},null,2\\)\\)\")",
+      "Bash(kill %1)"
+    ]
+  }
+}

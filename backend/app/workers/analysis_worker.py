@@ -27,6 +27,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import async_session_maker
 from app.core.security import get_encryptor
@@ -40,9 +41,13 @@ from app.services.ingestion import (
     clone_repository,
     detect_languages,
 )
+from app.services.ast_parser import parse_file
 from app.services.debt_detector import (
-    FileMetrics,
+    detect_bug_risk_issues,
+    detect_class_debt,
+    detect_code_style_issues,
     detect_file_debt,
+    detect_function_debt,
     detect_security_issues,
 )
 from app.services.dependency_analyzer import (
@@ -52,6 +57,7 @@ from app.services.dependency_analyzer import (
     parse_requirements_txt,
 )
 from app.services.scoring import AnalysisMetrics, calculate_modernization_score
+from app.services.ai_pipeline import generate_recommendations, get_ai_provider
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +121,11 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
             await _update_progress(db, jid, 5, "Cloning repository")
 
             project = (
-                await db.execute(select(Project).where(Project.id == pid))
+                await db.execute(
+                    select(Project)
+                    .where(Project.id == pid)
+                    .options(selectinload(Project.owner))
+                )
             ).scalar_one_or_none()
             if project is None:
                 raise ValueError(f"Project {pid} not found")
@@ -174,47 +184,75 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
             total_comments = 0
             total_code_lines = 0
 
+            import os
+
             for fi in inventory.files:
                 if not fi.language or fi.language in ("json", "xml", "yaml", "markdown", "html", "css", "scss"):
                     continue
 
-                # Create file metric record.
+                # Read source content once — used by both AST parser and security scan.
+                file_content = ""
+                try:
+                    full_path = os.path.join(tmp_dir, fi.path)
+                    with open(full_path, "r", encoding="utf-8", errors="ignore") as fh:
+                        file_content = fh.read()
+                except Exception:
+                    pass
+
+                # AST parse — returns real complexity / nesting / function counts.
+                parse_result = parse_file(fi.path, file_content, fi.language)
+                fm_data = parse_result.file_metrics
+
+                risk_level = "low"
+                if fm_data.max_complexity > 20 or fm_data.max_nesting > 6:
+                    risk_level = "high"
+                elif fm_data.max_complexity > 10 or fm_data.max_nesting > 4:
+                    risk_level = "medium"
+
                 fm = FileMetric(
                     analysis_id=analysis.id,
                     file_path=fi.path,
                     language=fi.language,
                     loc=fi.loc,
-                    complexity=0,
-                    max_nesting=0,
-                    function_count=0,
-                    class_count=0,
-                    comment_ratio=0.0,
-                    risk_level="low",
+                    complexity=fm_data.max_complexity,
+                    max_nesting=fm_data.max_nesting,
+                    function_count=fm_data.function_count,
+                    class_count=fm_data.class_count,
+                    comment_ratio=fm_data.comment_ratio,
+                    risk_level=risk_level,
                 )
                 db.add(fm)
 
-                # Run file-level debt rules.
-                file_metrics = FileMetrics(
-                    file_path=fi.path,
-                    language=fi.language,
-                    loc=fi.loc,
-                )
-                debt_findings = detect_file_debt(file_metrics)
+                # Accumulate scoring metrics.
+                total_complexity += fm_data.max_complexity
+                total_functions += fm_data.function_count
+                total_comments += int(fm_data.comment_ratio * fi.loc)
+                total_code_lines += fi.loc
 
-                # Security scan.
-                try:
-                    import os
-                    full_path = os.path.join(tmp_dir, fi.path)
-                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                        content = f.read()
-                    sec_findings = detect_security_issues(fi.path, content)
+                # File-level debt rules.
+                debt_findings = detect_file_debt(fm_data)
+
+                # Function-level debt rules.
+                for func in parse_result.functions:
+                    debt_findings.extend(detect_function_debt(func))
+                    if func.loc > 60:
+                        scoring_metrics.long_methods += 1
+
+                # Class-level debt rules.
+                for cls in parse_result.classes:
+                    debt_findings.extend(detect_class_debt(cls))
+
+                # Security, bug risk, and code style scans.
+                if file_content:
+                    sec_findings = detect_security_issues(fi.path, file_content)
                     debt_findings.extend(sec_findings)
                     scoring_metrics.potential_secrets_count += sum(
                         1 for d in sec_findings if d.rule_id == "HARDCODED_SECRET"
                     )
-                except Exception:
-                    pass
+                    debt_findings.extend(detect_bug_risk_issues(fi.path, file_content))
+                    debt_findings.extend(detect_code_style_issues(fi.path, file_content))
 
+                all_debt.extend(debt_findings)
                 for df in debt_findings:
                     db.add(DebtItem(
                         analysis_id=analysis.id,
@@ -236,6 +274,16 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                 # Detect large files for scoring.
                 if fi.loc > 500:
                     scoring_metrics.large_files += 1
+
+            # Update aggregate scoring metrics.
+            if total_functions > 0:
+                scoring_metrics.avg_cyclomatic_complexity = total_complexity / total_functions
+                scoring_metrics.total_methods = total_functions
+            if total_code_lines > 0:
+                scoring_metrics.overall_comment_ratio = total_comments / total_code_lines
+            scoring_metrics.avg_imports_per_file = (
+                sum(getattr(f, "import_count", 0) for f in inventory.files) / max(inventory.total_files, 1)
+            )
 
             await _update_progress(db, jid, 60, "Metrics computed")
 
@@ -277,12 +325,64 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
 
             await _update_progress(db, jid, 70, "Dependencies analyzed")
 
-            # ── Stage 6: AI Analysis (70-90%) — Optional ─────────────────
+            # ── Stage 6: AI Analysis (70-90%) ────────────────────────────
             await _update_progress(db, jid, 75, "Running AI analysis")
-            # AI analysis is optional and depends on API key availability.
-            # For now, we skip it in the MVP worker and rely on rule-based
-            # analysis. The AI synthesis can be triggered separately or
-            # integrated once API keys are configured.
+            try:
+                # Build context summaries for the synthesis prompt.
+                top_debt = sorted(all_debt, key=lambda d: (
+                    {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(d.severity, 4)
+                ))[:20]
+                top_issues_text = "\n".join(
+                    f"- [{d.severity}] {d.title} ({d.file_path})"
+                    for d in top_debt
+                ) or "No issues detected"
+
+                dep_text = (
+                    f"{len(dep_results)} dependencies; "
+                    f"{sum(1 for d in dep_results if d.days_behind > 180)} outdated; "
+                    f"{sum(1 for d in dep_results if d.vulnerability_count > 0)} vulnerable"
+                ) if dep_results else "No dependency manifest found"
+
+                metrics_text = (
+                    f"avg_complexity={scoring_metrics.avg_cyclomatic_complexity:.1f}, "
+                    f"total_methods={scoring_metrics.total_methods}, "
+                    f"long_methods={scoring_metrics.long_methods}, "
+                    f"large_files={scoring_metrics.large_files}, "
+                    f"test_files={scoring_metrics.test_file_count}"
+                )
+
+                ai_result = await generate_recommendations(
+                    repo_name=project.name,
+                    languages=project.detected_languages or {},
+                    total_files=project.total_files,
+                    total_loc=project.total_loc,
+                    metrics_summary=metrics_text,
+                    top_issues=top_issues_text,
+                    dependency_summary=dep_text,
+                    provider=get_ai_provider(),
+                )
+
+                if ai_result.get("executive_summary"):
+                    analysis.summary = {"executive_summary": ai_result["executive_summary"]}
+
+                for rec in ai_result.get("recommendations", [])[:10]:
+                    db.add(Recommendation(
+                        analysis_id=analysis.id,
+                        category=rec.get("category", "refactor"),
+                        priority=rec.get("priority", "medium"),
+                        title=rec.get("title", "")[:500],
+                        description=rec.get("description"),
+                        rationale=rec.get("rationale"),
+                        implementation_steps="\n".join(
+                            str(s) for s in rec.get("implementation_steps", [])
+                        ) if isinstance(rec.get("implementation_steps"), list)
+                        else rec.get("implementation_steps"),
+                        estimated_hours=rec.get("estimated_hours"),
+                        impact_score=rec.get("impact_score"),
+                    ))
+            except Exception as ai_err:
+                logger.warning("AI analysis failed (non-fatal): %s", ai_err)
+
             await _update_progress(db, jid, 90, "AI analysis complete")
 
             # ── Stage 7: Scoring (90-100%) ───────────────────────────────

@@ -18,12 +18,15 @@ import re
 import uuid
 from datetime import datetime, timezone
 
+from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.redis import get_arq_pool
 from app.core.security import get_current_user
+from app.models.analysis import Analysis, DebtItem, DependencyFinding
 from app.models.job import Job
 from app.models.project import Project
 from app.models.user import User
@@ -71,9 +74,62 @@ async def list_projects(
         .limit(limit)
     )
     result = await db.execute(rows_q)
-    projects = [
-        ProjectResponse.model_validate(p) for p in result.scalars().all()
-    ]
+    project_rows = result.scalars().all()
+    project_ids = [p.id for p in project_rows]
+
+    # Fetch aggregates for all projects in a single pass each.
+    scores: dict = {}
+    debt_counts: dict = {}
+    vuln_counts: dict = {}
+
+    if project_ids:
+        # Latest completed analysis score per project.
+        score_rows = (await db.execute(
+            select(Analysis.project_id, Analysis.overall_score, Analysis.grade)
+            .where(
+                Analysis.project_id.in_(project_ids),
+                Analysis.status == "completed",
+            )
+            .order_by(Analysis.project_id, Analysis.completed_at.desc())
+            .distinct(Analysis.project_id)
+        )).all()
+        scores = {r.project_id: (r.overall_score, r.grade) for r in score_rows}
+
+        # Debt item count per project (from latest completed analysis).
+        debt_rows = (await db.execute(
+            select(Analysis.project_id, func.count(DebtItem.id).label("cnt"))
+            .join(DebtItem, DebtItem.analysis_id == Analysis.id)
+            .where(
+                Analysis.project_id.in_(project_ids),
+                Analysis.status == "completed",
+            )
+            .group_by(Analysis.project_id)
+        )).all()
+        debt_counts = {r.project_id: r.cnt for r in debt_rows}
+
+        # Vulnerable dependency count per project.
+        vuln_rows = (await db.execute(
+            select(Analysis.project_id, func.count(DependencyFinding.id).label("cnt"))
+            .join(DependencyFinding, DependencyFinding.analysis_id == Analysis.id)
+            .where(
+                Analysis.project_id.in_(project_ids),
+                Analysis.status == "completed",
+                DependencyFinding.vulnerability_count > 0,
+            )
+            .group_by(Analysis.project_id)
+        )).all()
+        vuln_counts = {r.project_id: r.cnt for r in vuln_rows}
+
+    projects = []
+    for p in project_rows:
+        score, grade = scores.get(p.id, (None, None))
+        resp = ProjectResponse.model_validate(p)
+        resp.overall_score = score
+        resp.grade = grade
+        resp.debt_count = debt_counts.get(p.id, 0)
+        resp.vulnerable_dep_count = vuln_counts.get(p.id, 0)
+        projects.append(resp)
+
     return ProjectListResponse(projects=projects, total=total)
 
 
@@ -82,6 +138,7 @@ async def create_project(
     payload: ProjectCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
 ):
     """
     Create a project and enqueue a full analysis job.
@@ -98,30 +155,36 @@ async def create_project(
     repo_full_name = _extract_repo_name(payload.repo_url)
     name = payload.name or repo_full_name.split("/")[-1]
 
-    # Check for duplicates.
-    existing = await db.execute(
+    # Check for duplicates — re-analyze failed projects instead of blocking.
+    existing_row = await db.execute(
         select(Project).where(
             Project.user_id == current_user.id,
             Project.repo_url == payload.repo_url,
         )
     )
-    if existing.scalar_one_or_none():
+    existing = existing_row.scalar_one_or_none()
+    if existing is not None and existing.status != "failed":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This repository has already been added",
         )
 
-    project = Project(
-        user_id=current_user.id,
-        name=name,
-        repo_url=payload.repo_url,
-        repo_full_name=repo_full_name,
-        status="analyzing",
-    )
-    db.add(project)
-    await db.flush()
+    if existing is not None and existing.status == "failed":
+        # Re-use the existing project, just reset and re-queue.
+        project = existing
+        project.status = "analyzing"
+    else:
+        project = Project(
+            user_id=current_user.id,
+            name=name,
+            repo_url=payload.repo_url,
+            repo_full_name=repo_full_name,
+            status="analyzing",
+        )
+        db.add(project)
+        await db.flush()
 
-    # Create a background job record.
+    # Create a new background job record.
     job = Job(
         project_id=project.id,
         job_type="full_analysis",
@@ -130,8 +193,7 @@ async def create_project(
     db.add(job)
     await db.flush()
 
-    # TODO: Enqueue the ARQ job here once the worker is wired up.
-    # await arq_pool.enqueue_job("run_full_analysis", str(project.id), str(job.id))
+    await arq_pool.enqueue_job("run_full_analysis", str(project.id), str(job.id))
 
     await db.commit()
     await db.refresh(project)
@@ -190,6 +252,7 @@ async def re_analyze(
     project_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
 ):
     """Re-trigger analysis for an existing project."""
     result = await db.execute(
@@ -208,7 +271,7 @@ async def re_analyze(
     db.add(job)
     await db.flush()
 
-    # TODO: Enqueue ARQ job.
+    await arq_pool.enqueue_job("run_full_analysis", str(project.id), str(job.id))
 
     await db.commit()
     return {"message": "Analysis started", "job_id": str(job.id)}

@@ -10,19 +10,25 @@ RUN npm ci --production=false
 # Copy source code
 COPY . .
 
-# Build production bundle
+# ── Development stage (used by docker-compose dev) ────────────────────────────
+FROM base AS dev
+ENV NODE_ENV=development
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+# ── Production build ──────────────────────────────────────────────────────────
+FROM base AS builder
 RUN npm run build
 
-# Production runner
+# ── Production runner ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy built application
-COPY --from=base /app/.next/standalone ./
-COPY --from=base /app/.next/static ./.next/static
-COPY --from=base /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
