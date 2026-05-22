@@ -97,14 +97,14 @@ _SECRET_PATTERNS = [
 ]
 
 _SECURITY_PATTERNS = [
-    (r"\beval\s*\(", "security", "critical", "Usage of eval()", "eval() executes arbitrary code — replace with safe alternatives"),
-    (r"\bexec\s*\(", "security", "high", "Usage of exec()", "exec() executes arbitrary code — use AST-based approaches instead"),
+    (r"\beval\s*\(", "security", "critical", "Usage of eval()", "Dynamic evaluation of user-controlled input executes arbitrary code — use AST-based parsing instead"),
+    (r"\bexec\s*\(", "security", "high", "Usage of exec()", "Dynamic execution of user-controlled strings runs arbitrary code — use AST-based approaches instead"),
     (r"(?i)cursor\.execute\s*\([^)]*%s", "security", "medium", "Possible SQL injection (string formatting)", "Use parameterized queries instead of string interpolation"),
     (r"(?i)cursor\.execute\s*\([^)]*\+", "security", "high", "Possible SQL injection (concatenation)", "Use parameterized queries"),
     (r"(?i)subprocess\.call\s*\(.*shell\s*=\s*True", "security", "high", "Shell injection risk", "Avoid shell=True; pass args as a list"),
     (r"(?i)\b(md5|sha1)\s*\(", "security", "medium", "Weak cryptographic hash", "MD5/SHA1 are broken — use SHA-256 or better"),
     (r"verify\s*=\s*False", "security", "high", "SSL verification disabled", "Never disable SSL verification — exposes traffic to MITM attacks"),
-    (r"(?i)pickle\.loads?\s*\(", "security", "high", "Unsafe pickle deserialization", "pickle.load() on untrusted data allows arbitrary code execution — use JSON or protobuf"),
+    (r"(?i)pickle\.loads?\s*\(", "security", "high", "Unsafe pickle deserialization", "Deserializing untrusted pickle data allows arbitrary code execution — use JSON or protobuf instead"),
 ]
 
 # ── Bug Risk Patterns ────────────────────────────────────────────────────────
@@ -282,7 +282,13 @@ def detect_security_issues(file_path: str, content: str) -> list[DebtFinding]:
 
     Detects hardcoded secrets, eval/exec usage, SQL injection, shell injection,
     weak crypto, disabled SSL verification, and unsafe deserialization.
+
+    Test files are skipped — fixtures intentionally contain unsafe patterns.
     """
+    _path = file_path.lower().replace("\\", "/")
+    if "/test" in _path or _path.startswith("test"):
+        return []
+
     findings: list[DebtFinding] = []
 
     for pattern, desc in _SECRET_PATTERNS:
