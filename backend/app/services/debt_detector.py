@@ -97,8 +97,8 @@ _SECRET_PATTERNS = [
 ]
 
 _SECURITY_PATTERNS = [
-    (r"\beval\s*\(", "security", "critical", "Usage of eval()", "Dynamic evaluation of user-controlled input executes arbitrary code — use AST-based parsing instead"),
-    (r"\bexec\s*\(", "security", "high", "Usage of exec()", "Dynamic execution of user-controlled strings runs arbitrary code — use AST-based approaches instead"),
+    (r"\beval\s*\(", "security", "critical", "Dynamic eval usage", "Dynamic evaluation of user-controlled input executes arbitrary code — use AST-based parsing instead"),
+    (r"\bexec\s*\(", "security", "high", "Dynamic exec usage", "Dynamic execution of user-controlled strings runs arbitrary code — use AST-based approaches instead"),
     (r"(?i)cursor\.execute\s*\([^)]*%s", "security", "medium", "Possible SQL injection (string formatting)", "Use parameterized queries instead of string interpolation"),
     (r"(?i)cursor\.execute\s*\([^)]*\+", "security", "high", "Possible SQL injection (concatenation)", "Use parameterized queries"),
     (r"(?i)subprocess\.call\s*\(.*shell\s*=\s*True", "security", "high", "Shell injection risk", "Avoid shell=True; pass args as a list"),
