@@ -152,8 +152,8 @@ async def refactor_recommendation(
     if rec is None:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
-    # TODO: Call ai_pipeline.generate_refactoring() here.
-    # For now, return the stored before/after code or a placeholder.
+    # On-demand AI refactoring is not yet implemented; returns stored code or a
+    # placeholder. Wire up ai_pipeline.generate_refactoring() here when ready.
     return RefactorResponse(
         recommendation_id=rec.id,
         file_path=payload.file_path if payload else None,
