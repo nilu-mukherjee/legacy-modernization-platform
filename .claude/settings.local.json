@@ -17,7 +17,9 @@
       "Bash(node -e \"const d=require\\('/dev/stdin'\\);console.log\\(JSON.stringify\\({main:d.main,module:d.module,exports:d.exports},null,2\\)\\)\")",
       "Bash(node -e \"const fs=require\\('fs'\\);const d=JSON.parse\\(fs.readFileSync\\('C:/Dev/projects/ai-ml/legacy-modernization-platform/frontend/node_modules/jspdf/package.json','utf8'\\)\\);console.log\\(JSON.stringify\\({main:d.main,module:d.module,exports:d.exports},null,2\\)\\)\")",
       "Bash(kill %1)",
-      "Bash(git ls-remote *)"
+      "Bash(git ls-remote *)",
+      "Bash(python -c \"import re, time; patterns = {'JS_FUNC': r'\\(?:function\\\\s+\\(\\\\w+\\)\\\\s*\\\\\\(|\\(\\\\w+\\)\\\\s*[=:]\\\\s*\\(?:async\\\\s+\\)?\\(?:function|\\\\\\([^\\)]*\\\\\\)\\\\s*=>\\)\\)', 'JAVA_type': r'\\(?:void|\\\\w+\\(?:<[^>]*>\\)?\\)\\\\s+', 'JS_SIG': r'\\(?:async\\\\s+\\)?\\\\w+\\\\s*\\\\\\([^\\)]*\\\\\\)\\\\s*{'}; [print\\(n, round\\(\\(lambda s: \\(re.compile\\(p\\).search\\(s\\), time.time\\(\\)\\)\\)\\(\\\\\"a\\\\\"*50+\\\\\"b\\\\\"\\)[1] - time.time\\(\\), 6\\), 'oops'\\) or print\\(n, 'ok'\\) for n, p in patterns.items\\(\\)]\")",
+      "Bash(python -c ' *)"
     ]
   }
 }
