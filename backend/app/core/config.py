@@ -39,8 +39,9 @@ class Settings(BaseSettings):
 
     # ── Application ──────────────────────────────────────────────────────
     APP_NAME: str = "CodeLens AI"
-    APP_ENV: str = "development"  # development | staging | production
-    APP_DEBUG: bool = True
+    # Secure-by-default: production with debug disabled. Override via .env for local dev.
+    APP_ENV: str = "production"  # development | staging | production
+    APP_DEBUG: bool = False
     APP_VERSION: str = "0.1.0"
     APP_URL: str = "http://localhost:3000"
     API_URL: str = "http://localhost:8000"
