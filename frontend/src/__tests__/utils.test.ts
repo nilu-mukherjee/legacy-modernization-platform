@@ -14,7 +14,7 @@ describe("cn", () => {
   });
 
   it("handles falsy values without throwing", () => {
-    expect(() => cn("a", false, undefined, null as never)).not.toThrow();
+    expect(() => cn("a", false, undefined, null)).not.toThrow();
   });
 
   it("deduplicates conflicting Tailwind classes (last wins)", () => {
