@@ -35,14 +35,15 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# --chmod=444 on COPY: strictest — no write, no execute on copied resources.
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/public ./public
+# Container immutability: files owned by root, runtime user (nextjs) has read-only access.
+# Only root can write — nextjs cannot modify app files at runtime.
+COPY --from=builder --chmod=644 --chown=root:root /app/.next/standalone ./
+COPY --from=builder --chmod=644 --chown=root:root /app/.next/static ./.next/static
+COPY --from=builder --chmod=644 --chown=root:root /app/public ./public
 
-# Restore execute bit on directories only (needed for runtime traversal by `node`).
-# Files stay 444; directories become 555. No write bit anywhere under /app.
-RUN find /app -type d -exec chmod 555 {} +
+# Directories need execute bit for traversal by `node` running as nextjs.
+# Files: 644 (root rw, others r). Directories: 755 (root rwx, others rx).
+RUN find /app -type d -exec chmod 755 {} +
 
 USER nextjs
 EXPOSE 3000
