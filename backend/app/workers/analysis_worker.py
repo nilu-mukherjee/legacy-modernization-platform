@@ -136,8 +136,8 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                 try:
                     enc = get_encryptor()
                     access_token = enc.decrypt(project.owner.github_access_token)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed to decrypt GitHub token for project %s, cloning as public: %s", pid, exc)
 
             tmp_dir = tempfile.mkdtemp(prefix="codelens_")
             clone_repository(project.repo_url, tmp_dir, access_token)
@@ -196,8 +196,8 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                     full_path = os.path.join(tmp_dir, fi.path)
                     with open(full_path, "r", encoding="utf-8", errors="ignore") as fh:
                         file_content = fh.read()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Could not read file %s, skipping AST parse: %s", fi.path, exc)
 
                 # AST parse — returns real complexity / nesting / function counts.
                 parse_result = parse_file(fi.path, file_content, fi.language)
@@ -445,5 +445,5 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
             if tmp_dir:
                 try:
                     shutil.rmtree(tmp_dir, ignore_errors=True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed to clean up temp dir %s: %s", tmp_dir, exc)
