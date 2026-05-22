@@ -103,7 +103,7 @@ export default function ScoreGauge({
       {/* Center text */}
       <div className="absolute flex flex-col items-center">
         <span className={cn("text-4xl font-extrabold", gradeColor(grade))}>
-          {animatedScore}
+          {animatedScore}%
         </span>
         <span className="text-xs font-medium text-muted-foreground">
           Grade {grade}

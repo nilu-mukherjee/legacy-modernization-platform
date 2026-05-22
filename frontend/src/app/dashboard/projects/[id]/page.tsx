@@ -41,6 +41,7 @@ const LANG_COLORS: Record<string, string> = {
   typescript: "#2b7489",
   html: "#e34c26",
   css: "#563d7c",
+  scss: "#c6538c",
   "jupyter notebook": "#DA5B0B",
   java: "#b07219",
   go: "#00ADD8",
@@ -50,6 +51,9 @@ const LANG_COLORS: Record<string, string> = {
   c: "#555555",
   cpp: "#f34b7d",
   csharp: "#178600",
+  makefile: "#427819",
+  dockerfile: "#384d54",
+  mako: "#9a1a1a",
 };
 
 function getLangColor(lang: string): string {
@@ -119,6 +123,8 @@ export default function ProjectDetailPage() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [reanalyzeError, setReanalyzeError] = useState<string | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [aiLoaded, setAiLoaded] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   async function loadData() {
     try {
@@ -130,14 +136,12 @@ export default function ProjectDetailPage() {
       setAnalysis(analysisData);
 
       if (analysisData) {
-        const [debtData, depsData, recsData] = await Promise.all([
+        const [debtData, depsData] = await Promise.all([
           getDebtItems(projectId, 0, DEBT_PAGE_SIZE).catch(() => null),
           getDependencies(projectId, 0, DEPS_PAGE_SIZE).catch(() => null),
-          getRecommendations(projectId, 0, RECS_PAGE_SIZE).catch(() => null),
         ]);
         setDebt(debtData);
         setDeps(depsData);
-        setRecs(recsData);
         if (debtData?.by_category) setDebtByCategory(debtData.by_category);
       }
     } catch {
@@ -167,15 +171,13 @@ export default function ProjectDetailPage() {
         const a = await getAnalysis(projectId).catch(() => null);
         if (a) {
           setAnalysis(a);
-          const [debtData, depsData, recsData] = await Promise.all([
+          const [debtData, depsData] = await Promise.all([
             getDebtItems(projectId, 0, DEBT_PAGE_SIZE).catch(() => null),
             getDependencies(projectId, 0, DEPS_PAGE_SIZE).catch(() => null),
-            getRecommendations(projectId, 0, RECS_PAGE_SIZE).catch(() => null),
           ]);
           if (!cancelled) {
             setDebt(debtData);
             setDeps(depsData);
-            setRecs(recsData);
             if (debtData?.by_category) setDebtByCategory(debtData.by_category);
           }
           return;
@@ -211,14 +213,12 @@ export default function ProjectDetailPage() {
           }
           setAnalysis(finalAnalysis);
           if (finalAnalysis) {
-            const [debtData, depsData, recsData] = await Promise.all([
+            const [debtData, depsData] = await Promise.all([
               getDebtItems(projectId, 0, DEBT_PAGE_SIZE).catch(() => null),
               getDependencies(projectId, 0, DEPS_PAGE_SIZE).catch(() => null),
-              getRecommendations(projectId, 0, RECS_PAGE_SIZE).catch(() => null),
             ]);
             setDebt(debtData);
             setDeps(depsData);
-            setRecs(recsData);
             if (debtData?.by_category) setDebtByCategory(debtData.by_category);
           }
         }
@@ -232,11 +232,11 @@ export default function ProjectDetailPage() {
   async function handleReanalyze() {
     setReanalyzeError(null);
     setReanalyzing(true);
-    // Show skeletons immediately — don't wait for the API round-trip.
     setAnalysis(null);
     setDebt(null);
     setDeps(null);
     setRecs(null);
+    setAiLoaded(false);
     try {
       const res = await reAnalyze(projectId);
       setActiveJobId(res.job_id);
@@ -288,6 +288,18 @@ export default function ProjectDetailPage() {
       .catch(() => null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recsPage]);
+
+  // Lazy-load AI recommendations when AI tab is first opened
+  useEffect(() => {
+    const analyzing = reanalyzing || project?.status === "analyzing";
+    if (activeTab !== "ai" || aiLoaded || !analysis || analyzing) return;
+    setAiLoading(true);
+    getRecommendations(projectId, 0, RECS_PAGE_SIZE)
+      .then((r) => { setRecs(r); setAiLoaded(true); })
+      .catch(() => setAiLoaded(true))
+      .finally(() => setAiLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, analysis, aiLoaded, reanalyzing, project?.status]);
 
   if (loading) {
     return (
@@ -448,6 +460,7 @@ export default function ProjectDetailPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
+            style={{ cursor: "pointer" }}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab.id
                 ? "border-primary text-foreground"
@@ -668,7 +681,13 @@ export default function ProjectDetailPage() {
 
         {!isAnalyzing && activeTab === "ai" && (
           <div>
-            {recsTotal > 0 ? (
+            {aiLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+                ))}
+              </div>
+            ) : recsTotal > 0 ? (
               <div className="space-y-4">
                 {analysis?.summary?.executive_summary && (
                   <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
@@ -708,9 +727,18 @@ export default function ProjectDetailPage() {
                 />
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Bot className="mx-auto h-8 w-8 mb-3 text-primary" />
-                <p>{isAnalyzing ? "AI analysis in progress…" : "No AI recommendations yet. Click Re-analyze to generate insights."}</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <Bot className="mx-auto h-10 w-10 mb-4 text-primary/50" />
+                <p className="text-sm mb-4">No AI insights yet for this project.</p>
+                <button
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing}
+                  style={{ cursor: "pointer" }}
+                  className="inline-flex items-center gap-2 rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl disabled:opacity-50"
+                >
+                  {reanalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                  {reanalyzing ? "Starting…" : "Generate AI Insights"}
+                </button>
               </div>
             )}
           </div>

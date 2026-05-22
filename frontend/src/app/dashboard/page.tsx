@@ -53,7 +53,7 @@ export default function DashboardPage() {
     },
     {
       label: "Avg. Score",
-      value: loading ? "…" : avgScore !== null ? String(avgScore) : "—",
+      value: loading ? "…" : avgScore !== null ? `${avgScore}%` : "—",
       icon: TrendingUp,
       color: "text-green-500",
       bg: "bg-green-500/10",

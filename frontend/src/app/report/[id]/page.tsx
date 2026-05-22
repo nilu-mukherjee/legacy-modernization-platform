@@ -60,7 +60,7 @@ function ScoreGauge({ score, grade }: { score: number; grade: string }) {
           style={{ transition: "stroke-dasharray 1s ease" }}
         />
         <text x="60" y="55" textAnchor="middle" fontSize="22" fontWeight="800" fill={color}>
-          {Math.round(score)}
+          {Math.round(score)}%
         </text>
         <text x="60" y="74" textAnchor="middle" fontSize="13" fontWeight="700" fill="#6b7280">
           Grade {grade}

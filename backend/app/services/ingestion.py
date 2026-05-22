@@ -58,7 +58,12 @@ LANGUAGE_MAP: dict[str, str] = {
     ".html": "html",
     ".css": "css",
     ".scss": "scss",
+    ".sass": "scss",
     ".md": "markdown",
+    ".mako": "mako",
+    ".mak": "mako",
+    ".mk": "makefile",
+    ".dockerfile": "dockerfile",
 }
 
 # Known dependency manifest filenames.
@@ -229,7 +234,13 @@ def build_file_inventory(repo_path: str) -> Inventory:
                 continue  # Skip oversized files.
 
             # Count lines.
-            language = LANGUAGE_MAP.get(ext)
+            # Bare filenames with no extension (Dockerfile, Makefile, etc.)
+            if not ext and lower_name in ("dockerfile", "dockerfile.dev"):
+                language = "dockerfile"
+            elif not ext and lower_name in ("makefile", "gnumakefile"):
+                language = "makefile"
+            else:
+                language = LANGUAGE_MAP.get(ext)
             loc = 0
             if language and language not in ("json", "xml", "yaml", "markdown"):
                 try:
@@ -251,7 +262,7 @@ def build_file_inventory(repo_path: str) -> Inventory:
 
             if language:
                 inventory.languages[language] = (
-                    inventory.languages.get(language, 0) + loc
+                    inventory.languages.get(language, 0) + size
                 )
 
     return inventory
@@ -266,6 +277,6 @@ def detect_languages(inventory: Inventory) -> dict[str, int]:
     source_langs = {
         k: v
         for k, v in inventory.languages.items()
-        if k not in ("json", "xml", "yaml", "markdown", "css", "scss")
+        if k not in ("json", "xml", "yaml", "markdown")
     }
     return dict(sorted(source_langs.items(), key=lambda x: x[1], reverse=True))
