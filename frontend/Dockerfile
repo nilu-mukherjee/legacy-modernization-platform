@@ -16,8 +16,9 @@ COPY --chmod=444 postcss.config.mjs ./
 COPY --chmod=444 components.json ./
 
 # ── Development stage (used by docker-compose dev) ────────────────────────────
+# NODE_ENV is NOT set here — must be injected at runtime via docker-compose
+# `environment:` block. Keeps debug mode out of any image shipped to production.
 FROM base AS dev
-ENV NODE_ENV=development
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 USER nextjs
 EXPOSE 3000
