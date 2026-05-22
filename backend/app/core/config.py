@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     API_URL: str = "http://localhost:8000"
 
     # ── Database ─────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://codelens:codelens@localhost:5432/codelens"
-    DATABASE_SYNC_URL: str = "postgresql://codelens:codelens@localhost:5432/codelens"
+    DATABASE_URL: str = "postgresql+asyncpg://codelens:CHANGE_ME@localhost:5432/codelens"
+    DATABASE_SYNC_URL: str = "postgresql://codelens:CHANGE_ME@localhost:5432/codelens"
 
     # ── Redis ────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"

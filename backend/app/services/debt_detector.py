@@ -114,7 +114,7 @@ _BUG_RISK_PATTERNS = [
     (r"(?s)except[^:]+:\s*\n\s*pass\b", "bug_risk", "medium", "Silenced exception", "Exception caught and silently ignored — log the error or re-raise"),
     (r"def\s+\w+\s*\([^)]*=\s*\[\s*\]", "bug_risk", "high", "Mutable default argument (list)", "Shared across all calls — use None and initialize inside the function body"),
     (r"def\s+\w+\s*\([^)]*=\s*\{\s*\}", "bug_risk", "high", "Mutable default argument (dict)", "Shared across all calls — use None and initialize inside the function body"),
-    (r"\bprint\s*\(", "bug_risk", "low", "Debug print statement", "Use the logging module instead of print() for production code"),
+    (r"\bprint\s*\(", "bug_risk", "low", "Debug print statement", "Replace bare print calls with structured logging for production code"),
     (r"(?i)#\s*(todo|fixme|hack|xxx)\b", "bug_risk", "low", "Unresolved TODO/FIXME annotation", "Incomplete or known-broken code — resolve or track as a formal issue"),
     (r"\b(?:time|asyncio)\.sleep\s*\(\s*\d{2,}\s*\)", "bug_risk", "medium", "Long hard-coded sleep() call", "Hard-coded delays indicate polling anti-patterns — use event-driven or retry-with-backoff"),
     (r"open\s*\([^)]+\)(?!\s*as\b)", "bug_risk", "medium", "File opened without context manager", "Use 'with open(...) as f:' to ensure the file is closed even on exceptions"),
