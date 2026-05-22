@@ -35,13 +35,14 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# --chmod=555 on COPY: no write bit anywhere; directories keep execute bit for traversal.
-COPY --from=builder --chmod=555 --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chmod=555 --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chmod=555 --chown=nextjs:nodejs /app/public ./public
+# --chmod=444 on COPY: strictest — no write, no execute on copied resources.
+COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/public ./public
 
-# Narrow files to 444 (no execute); directories stay 555 (read + traverse, no write).
-RUN find /app -type f -exec chmod 444 {} +
+# Restore execute bit on directories only (needed for runtime traversal by `node`).
+# Files stay 444; directories become 555. No write bit anywhere under /app.
+RUN find /app -type d -exec chmod 555 {} +
 
 USER nextjs
 EXPOSE 3000
