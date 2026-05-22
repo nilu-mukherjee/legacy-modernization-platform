@@ -14,9 +14,12 @@ installed the native grammar packages.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from app.services.debt_detector import ClassMetrics, FileMetrics, FunctionMetrics
 
@@ -101,8 +104,8 @@ def parse_file(file_path: str, content: str, language: str) -> ParseResult:
     if ts_language is not None and _TS_AVAILABLE:
         try:
             return _parse_with_tree_sitter(file_path, content, lang, ts_language)
-        except Exception:
-            pass  # Tree-sitter parse error — fall through to regex.
+        except Exception as exc:
+            logger.warning("tree-sitter parse failed for %s, falling back to regex: %s", file_path, exc)
 
     return _parse_with_regex(file_path, content, lang)
 
