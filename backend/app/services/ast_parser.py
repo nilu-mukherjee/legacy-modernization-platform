@@ -709,7 +709,8 @@ _JAVA_METHOD_RE = re.compile(
     # {0,6} bounds modifier repetition — prevents O(n²) retry when `class` is absent.
     r"\b(?:(?:public|private|protected|static|final|synchronized|abstract|native)\s+){0,6}"
     # `[^{]+` (negated class) prevents O(n²) backtracking on throws clauses with no `{`.
-    r"(?:(?:<[^>]+>\s+)?(?:void|\w+(?:<[^>]*>)?))\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{"
+    # `\w+` covers `void` too — removing the alternation eliminates the overlapping-branch flag.
+    r"(?:(?:<[^>]+>\s+)?\w+(?:<[^>]*>)?)\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{"
 )
 _JAVA_CLASS_RE = re.compile(
     # {0,5} bounds modifier repetition to prevent O(n²) backtracking.
@@ -717,7 +718,7 @@ _JAVA_CLASS_RE = re.compile(
 )
 _JAVA_BRANCH_RE = re.compile(r"\b(if|else\s+if|for|while|catch|case)\b|&&|\|\|")
 # Compiled once; avoids repeated compilation and documents the pattern clearly.
-_JS_METHOD_SIGNATURE_RE = re.compile(r"(?:async\s+)?\w+\s*\([^)]*\)\s*\{")
+_JS_METHOD_SIGNATURE_RE = re.compile(r"\w+\s*\([^)]*\)\s*\{")
 # Extracts the parameter list from a function/method signature line.
 _PARAM_LIST_RE = re.compile(r"\(([^)]*)\)")
 
