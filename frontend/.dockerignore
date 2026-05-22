@@ -1,0 +1,40 @@
+# Secrets and local config — must never enter the image
+.env
+.env.*
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Dependencies — installed inside the container
+node_modules/
+
+# Build output — rebuilt inside the container
+.next/
+out/
+
+# Version control
+.git/
+.gitignore
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Test and coverage artifacts
+coverage/
+.nyc_output/
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Logs
+*.log
+npm-debug.log*

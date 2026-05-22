@@ -507,6 +507,10 @@ def _parse_with_regex(file_path: str, content: str, lang: str) -> ParseResult:
     return ParseResult(file_metrics=file_metrics, functions=functions, classes=classes)
 
 
+# Lines longer than this are skipped by regex parsers to bound worst-case
+# backtracking time. Real source lines are almost always < 300 chars.
+_MAX_REGEX_LINE_LEN = 500
+
 # ── Python regex parser ───────────────────────────────────────────────────────
 
 _PY_FUNC_RE = re.compile(r"^(\s{0,16})(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)")
@@ -555,6 +559,8 @@ def _regex_python(
 
     for i, line in enumerate(lines):
         if not line.strip():
+            continue
+        if len(line) > _MAX_REGEX_LINE_LEN:
             continue
         indent = len(line) - len(line.lstrip())
 
@@ -639,6 +645,9 @@ def _regex_js_ts(
     class_stack: list[tuple[str, int, int]] = []
 
     for i, line in enumerate(lines):
+        if len(line) > _MAX_REGEX_LINE_LEN:
+            brace_depth += line.count("{") - line.count("}")
+            continue
         opens = line.count("{")
         closes = line.count("}")
 
@@ -659,7 +668,7 @@ def _regex_js_ts(
             func_lines = lines[start : i + 1]
             func_loc = i - start + 1
             branch_count = sum(len(_JS_BRANCH_RE.findall(l)) for l in func_lines)
-            param_match = re.search(r"\(([^)]*)\)", lines[start])
+            param_match = _PARAM_LIST_RE.search(lines[start])
             raw = param_match.group(1) if param_match else ""
             param_count = len([p for p in raw.split(",") if p.strip()])
             functions.append(
@@ -680,7 +689,7 @@ def _regex_js_ts(
             cls_loc = i - cstart + 1
             method_count = sum(
                 1 for l in lines[cstart : i + 1]
-                if re.search(r"(?:async\s+)?\w+\s*\([^)]*\)\s*\{", l)
+                if len(l) <= _MAX_REGEX_LINE_LEN and _JS_METHOD_SIGNATURE_RE.search(l)
             )
             classes.append(
                 ClassMetrics(
@@ -697,13 +706,20 @@ def _regex_js_ts(
 # ── Java regex parser ─────────────────────────────────────────────────────────
 
 _JAVA_METHOD_RE = re.compile(
-    r"\b(?:(?:public|private|protected|static|final|synchronized|abstract|native)\s+)*"
-    r"(?:(?:<[^>]+>\s+)?(?:void|\w+(?:<[^>]*>)?))\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\{"
+    # {0,6} bounds modifier repetition — prevents O(n²) retry when `class` is absent.
+    r"\b(?:(?:public|private|protected|static|final|synchronized|abstract|native)\s+){0,6}"
+    # `[^{]+` (negated class) prevents O(n²) backtracking on throws clauses with no `{`.
+    r"(?:(?:<[^>]+>\s+)?(?:void|\w+(?:<[^>]*>)?))\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{"
 )
 _JAVA_CLASS_RE = re.compile(
-    r"\b(?:(?:public|private|protected|abstract|final|static)\s+)*class\s+(\w+)"
+    # {0,5} bounds modifier repetition to prevent O(n²) backtracking.
+    r"\b(?:(?:public|private|protected|abstract|final|static)\s+){0,5}class\s+(\w+)"
 )
 _JAVA_BRANCH_RE = re.compile(r"\b(if|else\s+if|for|while|catch|case)\b|&&|\|\|")
+# Compiled once; avoids repeated compilation and documents the pattern clearly.
+_JS_METHOD_SIGNATURE_RE = re.compile(r"(?:async\s+)?\w+\s*\([^)]*\)\s*\{")
+# Extracts the parameter list from a function/method signature line.
+_PARAM_LIST_RE = re.compile(r"\(([^)]*)\)")
 
 
 def _regex_java(
@@ -717,6 +733,9 @@ def _regex_java(
     class_stack: list[tuple[str, int, int]] = []
 
     for i, line in enumerate(lines):
+        if len(line) > _MAX_REGEX_LINE_LEN:
+            brace_depth += line.count("{") - line.count("}")
+            continue
         opens = line.count("{")
         closes = line.count("}")
 
@@ -736,7 +755,7 @@ def _regex_java(
             func_lines = lines[start : i + 1]
             func_loc = i - start + 1
             branch_count = sum(len(_JAVA_BRANCH_RE.findall(l)) for l in func_lines)
-            param_match = re.search(r"\(([^)]*)\)", lines[start])
+            param_match = _PARAM_LIST_RE.search(lines[start])
             raw = param_match.group(1) if param_match else ""
             param_count = len([p for p in raw.split(",") if p.strip()])
             functions.append(
