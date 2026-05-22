@@ -35,7 +35,7 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-COPY --from=builder --chmod=555 --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chmod=444 --chown=nextjs:nodejs /app/public ./public
 
