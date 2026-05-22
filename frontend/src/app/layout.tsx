@@ -2,20 +2,18 @@
  * Root Layout
  * ===========
  * The top-level layout that wraps every page. Sets up:
- * - Google Fonts (Inter)
+ * - IBM Plex Sans (via @fontsource)
  * - Global CSS import
  * - HTML metadata for SEO
  */
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-sans/700.css";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: {
@@ -40,8 +38,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
+      <body className="font-sans antialiased">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

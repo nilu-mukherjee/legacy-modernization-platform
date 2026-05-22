@@ -15,6 +15,8 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { signOutAction } from "./actions";
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -23,11 +25,14 @@ const NAV_ITEMS = [
   { icon: Bot, label: "AI Insights", href: "/dashboard/insights" },
 ];
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+  const userName = session?.user?.name ?? "User";
+  const userInitial = userName.charAt(0).toUpperCase();
   return (
     <div className="flex min-h-screen">
       {/* ── Sidebar ───────────────────────────────────────────────── */}
@@ -63,10 +68,15 @@ export default function DashboardLayout({
             <Settings className="h-4 w-4" />
             Settings
           </Link>
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </button>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </button>
+          </form>
         </div>
       </aside>
 
@@ -78,8 +88,9 @@ export default function DashboardLayout({
             <h2 className="text-lg font-semibold">Dashboard</h2>
           </div>
           <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{userName}</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
-              U
+              {userInitial}
             </div>
           </div>
         </header>

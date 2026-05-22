@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -40,11 +40,12 @@ router = APIRouter()
 )
 async def list_recommendations(
     project_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all AI recommendations for the latest analysis."""
-    # Verify ownership + get latest analysis.
+    """Get paginated AI recommendations for the latest analysis."""
     proj = await db.execute(
         select(Project).where(
             Project.id == project_id, Project.user_id == current_user.id
@@ -63,25 +64,30 @@ async def list_recommendations(
     ).scalar_one_or_none()
 
     if analysis is None:
-        return RecommendationListResponse(
-            recommendations=[], total=0, by_priority={}
-        )
+        return RecommendationListResponse(recommendations=[], total=0, by_priority={})
+
+    where = Recommendation.analysis_id == analysis.id
+
+    total = (await db.execute(
+        select(func.count()).select_from(Recommendation).where(where)
+    )).scalar() or 0
+
+    pri_rows = (await db.execute(
+        select(Recommendation.priority, func.count(Recommendation.id).label("cnt"))
+        .where(where)
+        .group_by(Recommendation.priority)
+    )).all()
+    by_priority = {r.priority: r.cnt for r in pri_rows}
 
     result = await db.execute(
-        select(Recommendation)
-        .where(Recommendation.analysis_id == analysis.id)
+        select(Recommendation).where(where)
         .order_by(Recommendation.impact_score.desc().nullslast())
+        .offset(skip).limit(limit)
     )
-    recs = [
-        RecommendationResponse.model_validate(r) for r in result.scalars().all()
-    ]
-
-    by_priority: dict[str, int] = {}
-    for r in recs:
-        by_priority[r.priority] = by_priority.get(r.priority, 0) + 1
+    recs = [RecommendationResponse.model_validate(r) for r in result.scalars().all()]
 
     return RecommendationListResponse(
-        recommendations=recs, total=len(recs), by_priority=by_priority
+        recommendations=recs, total=total, by_priority=by_priority
     )
 
 

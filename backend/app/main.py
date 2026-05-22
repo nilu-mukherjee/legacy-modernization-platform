@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
-from app.core.redis import close_redis, init_redis
+from app.core.redis import close_arq, close_redis, init_arq, init_redis
 
 
 @asynccontextmanager
@@ -33,8 +33,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # ── Startup ──────────────────────────────────────────────────────────
     await init_redis()
+    await init_arq()
     yield
     # ── Shutdown ─────────────────────────────────────────────────────────
+    await close_arq()
     await close_redis()
 
 

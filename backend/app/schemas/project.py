@@ -40,6 +40,11 @@ class ProjectResponse(OrmBase):
     last_analyzed_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+    # Aggregated from latest completed analysis — populated by list/detail endpoints.
+    overall_score: Optional[float] = None
+    grade: Optional[str] = None
+    debt_count: int = 0
+    vulnerable_dep_count: int = 0
 
 
 class ProjectCreateResponse(OrmBase):

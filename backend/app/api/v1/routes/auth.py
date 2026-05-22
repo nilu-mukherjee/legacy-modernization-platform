@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -46,7 +47,7 @@ async def sync_user(payload: UserSync, db: AsyncSession = Depends(get_db)):
     encrypted_token = encryptor.encrypt(payload.access_token)
 
     if user is None:
-        # Create new user.
+        # Create new user — guard against concurrent sync calls on the same email.
         user = User(
             email=payload.email,
             name=payload.name,
@@ -55,7 +56,20 @@ async def sync_user(payload: UserSync, db: AsyncSession = Depends(get_db)):
             github_access_token=encrypted_token,
         )
         db.add(user)
-        await db.flush()
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            result2 = await db.execute(
+                select(User).where(User.email == payload.email)
+            )
+            user = result2.scalar_one_or_none()
+            if user is None:
+                raise
+            user.github_id = payload.github_id
+            user.name = payload.name or user.name
+            user.avatar_url = payload.avatar_url or user.avatar_url
+            user.github_access_token = encrypted_token
     else:
         # Update existing user profile + token.
         user.name = payload.name or user.name

@@ -98,6 +98,7 @@ class DebtListResponse(BaseModel):
     debt_items: list[DebtItemResponse]
     total: int
     by_severity: dict  # {"critical": 5, "high": 12, ...}
+    by_category: dict = {}  # always full counts, unaffected by pagination
 
 
 # ── Dependency Findings ──────────────────────────────────────────────────────

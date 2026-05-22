@@ -20,6 +20,8 @@ import GitHub from "next-auth/providers/github";
  * `signOut`  — Programmatic sign-out trigger
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+
   /** Registered OAuth providers. */
   providers: [
     GitHub({
@@ -50,11 +52,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * On initial sign-in, we persist the GitHub access token and user
      * profile into the JWT so downstream callbacks can access them.
      */
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, user, profile }) {
       if (account) {
         token.accessToken = account.access_token;
-        token.githubUsername = profile?.login;
+        token.githubUsername = (profile as Record<string, unknown>)?.login as string | undefined;
       }
+
+      // Sync (or re-sync) to backend whenever backendToken is missing.
+      if (!token.backendToken && token.accessToken && token.sub) {
+        try {
+          const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:8000";
+          const res = await fetch(`${apiUrl}/api/v1/auth/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              github_id: String(
+                (profile as Record<string, unknown>)?.id ?? user?.id ?? token.sub
+              ),
+              email: user?.email ?? token.email,
+              name: user?.name ?? token.name,
+              avatar_url: user?.image,
+              access_token: token.accessToken,
+            }),
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { token: string };
+            token.backendToken = data.token;
+          } else {
+            console.error("[Auth] Backend sync failed:", res.status, await res.text());
+          }
+        } catch (err) {
+          console.error("[Auth] Backend sync error:", err);
+        }
+      }
+
       return token;
     },
 
@@ -66,12 +97,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      */
     async session({ session, token }) {
       if (token.accessToken) {
-        (session as Record<string, unknown>).accessToken =
+        (session as unknown as Record<string, unknown>).accessToken =
           token.accessToken;
       }
       if (token.githubUsername) {
-        (session.user as Record<string, unknown>).githubUsername =
+        (session.user as unknown as Record<string, unknown>).githubUsername =
           token.githubUsername;
+      }
+      if (token.backendToken) {
+        (session as unknown as Record<string, unknown>).backendToken =
+          token.backendToken;
       }
       return session;
     },

@@ -19,11 +19,14 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import redis.asyncio as aioredis
+from arq import create_pool
+from arq.connections import ArqRedis, RedisSettings
 
 from app.core.config import settings
 
-# ── Global connection pool ───────────────────────────────────────────────────
+# ── Global connection pools ──────────────────────────────────────────────────
 _pool: Optional[aioredis.Redis] = None
+_arq_pool: Optional[ArqRedis] = None
 
 
 async def init_redis() -> aioredis.Redis:
@@ -87,3 +90,24 @@ async def get_redis() -> RedisClient:
     """FastAPI dependency that returns a :class:`RedisClient` instance."""
     conn = await init_redis()
     return RedisClient(conn)
+
+
+async def init_arq() -> ArqRedis:
+    """Create (or return existing) ARQ job-queue pool."""
+    global _arq_pool
+    if _arq_pool is None:
+        _arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+    return _arq_pool
+
+
+async def close_arq() -> None:
+    """Close the ARQ pool."""
+    global _arq_pool
+    if _arq_pool is not None:
+        await _arq_pool.close()
+        _arq_pool = None
+
+
+async def get_arq_pool() -> ArqRedis:
+    """FastAPI dependency that returns the ARQ job-queue pool."""
+    return await init_arq()

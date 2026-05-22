@@ -7,6 +7,13 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+let _authToken: string | null = null;
+
+/** Call once session is available to wire up the bearer token for all API calls. */
+export function setAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
 /**
  * Generic fetch wrapper with auth token injection and error handling.
  */
@@ -21,12 +28,8 @@ async function apiFetch<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  // Inject auth token from localStorage if available.
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("codelens_token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
   }
 
   const response = await fetch(url, {
@@ -39,6 +42,7 @@ async function apiFetch<T>(
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
 
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 
@@ -106,23 +110,25 @@ export async function getFileMetrics(projectId: string, skip = 0, limit = 50) {
   );
 }
 
-export async function getDebtItems(projectId: string) {
-  return apiFetch<{ debt_items: any[]; total: number; by_severity: Record<string, number> }>(
-    `/api/v1/projects/${projectId}/analysis/debt`
+export async function getDebtItems(projectId: string, skip = 0, limit = 20, category?: string) {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  if (category) params.set("category", category);
+  return apiFetch<{ debt_items: any[]; total: number; by_severity: Record<string, number>; by_category: Record<string, number> }>(
+    `/api/v1/projects/${projectId}/analysis/debt?${params}`
   );
 }
 
-export async function getDependencies(projectId: string) {
+export async function getDependencies(projectId: string, skip = 0, limit = 20) {
   return apiFetch<{ dependencies: any[]; total: number; summary: any }>(
-    `/api/v1/projects/${projectId}/analysis/dependencies`
+    `/api/v1/projects/${projectId}/analysis/dependencies?skip=${skip}&limit=${limit}`
   );
 }
 
 // ── Recommendations ───────────────────────────────────────────────────────
 
-export async function getRecommendations(projectId: string) {
-  return apiFetch<{ recommendations: any[]; total: number }>(
-    `/api/v1/projects/${projectId}/recommendations`
+export async function getRecommendations(projectId: string, skip = 0, limit = 10) {
+  return apiFetch<{ recommendations: any[]; total: number; by_priority: Record<string, number> }>(
+    `/api/v1/projects/${projectId}/recommendations?skip=${skip}&limit=${limit}`
   );
 }
 
