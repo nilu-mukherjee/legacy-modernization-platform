@@ -14,6 +14,7 @@ Parses dependency manifest files (``package.json``, ``requirements.txt``,
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 # ── Dataclasses ──────────────────────────────────────────────────────────────
@@ -158,8 +161,8 @@ async def check_npm_versions(packages: list[Dependency]) -> list[DependencyResul
                                 result.days_behind = max(0, (l - c).days)
                             except (ValueError, TypeError):
                                 pass
-            except (httpx.HTTPError, json.JSONDecodeError, KeyError):
-                pass
+            except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
+                logger.warning("npm registry lookup failed for %s: %s", pkg.name, exc)
 
             result.risk_level = _calculate_risk(result)
             results.append(result)
@@ -211,8 +214,8 @@ async def check_pypi_versions(packages: list[Dependency]) -> list[DependencyResu
                                 result.days_behind = max(0, (l_date - c_date).days)
                             except (ValueError, TypeError):
                                 pass
-            except (httpx.HTTPError, json.JSONDecodeError, KeyError):
-                pass
+            except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
+                logger.warning("PyPI registry lookup failed for %s: %s", pkg.name, exc)
 
             result.risk_level = _calculate_risk(result)
             results.append(result)

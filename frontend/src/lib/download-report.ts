@@ -125,7 +125,7 @@ export async function downloadReport(projectId: string): Promise<void> {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(26);
     doc.setTextColor(255, 255, 255);
-    doc.text(String(score), ML + 14, y + 28);
+    doc.text(`${score}%`, ML + 14, y + 28);
 
     // Grade text inside badge
     doc.setFontSize(14);
