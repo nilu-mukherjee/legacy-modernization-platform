@@ -23,8 +23,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy application code
-COPY . .
+# Copy only runtime-required paths — explicit to prevent accidental inclusion
+# of secrets, local configs, tests, scripts, or other sensitive files via broad recursive copy.
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
 
 # Install the project itself into the existing venv now that source is present.
 RUN uv sync --frozen --no-dev
