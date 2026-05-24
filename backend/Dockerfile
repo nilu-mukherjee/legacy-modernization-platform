@@ -18,10 +18,11 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-# Install Python deps from lock file. --frozen refuses to resolve if the lock is missing
-# or stale, guaranteeing the exact pinned versions are used.
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+# Copy dependency manifest and generate a lock file, then install pinned deps.
+# uv lock resolves all transitive dependencies and writes uv.lock; --frozen on
+# subsequent syncs guarantees those exact versions are installed.
+COPY pyproject.toml ./
+RUN uv lock && uv sync --frozen --no-dev --no-install-project
 
 # Copy only runtime-required paths — explicit to prevent accidental inclusion
 # of secrets, local configs, tests, scripts, or other sensitive files via broad recursive copy.
