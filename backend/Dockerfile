@@ -29,6 +29,8 @@ RUN uv lock && uv sync --frozen --no-dev --no-install-project
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY start.sh ./
+RUN chmod +x start.sh
 
 # Install the project itself into the existing venv now that source is present.
 RUN uv sync --frozen --no-dev
