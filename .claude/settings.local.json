@@ -20,7 +20,32 @@
       "Bash(git ls-remote *)",
       "Bash(python -c \"import re, time; patterns = {'JS_FUNC': r'\\(?:function\\\\s+\\(\\\\w+\\)\\\\s*\\\\\\(|\\(\\\\w+\\)\\\\s*[=:]\\\\s*\\(?:async\\\\s+\\)?\\(?:function|\\\\\\([^\\)]*\\\\\\)\\\\s*=>\\)\\)', 'JAVA_type': r'\\(?:void|\\\\w+\\(?:<[^>]*>\\)?\\)\\\\s+', 'JS_SIG': r'\\(?:async\\\\s+\\)?\\\\w+\\\\s*\\\\\\([^\\)]*\\\\\\)\\\\s*{'}; [print\\(n, round\\(\\(lambda s: \\(re.compile\\(p\\).search\\(s\\), time.time\\(\\)\\)\\)\\(\\\\\"a\\\\\"*50+\\\\\"b\\\\\"\\)[1] - time.time\\(\\), 6\\), 'oops'\\) or print\\(n, 'ok'\\) for n, p in patterns.items\\(\\)]\")",
       "Bash(python -c ' *)",
-      "Bash(Move-Item *)"
+      "Bash(Move-Item *)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway whoami --json)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway status --json)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway logs --service legacy-modernization-platform --deployment 5d6a0444-6638-4629-b510-8a441548d99a --lines 50)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway logs --service legacy-modernization-platform --lines 100)",
+      "mcp__railway__list_deployments",
+      "mcp__railway__get_logs",
+      "mcp__railway__update_service",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: switch Railway builder from RAILPACK to DOCKERFILE *)",
+      "Bash(git push *)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway logs --service 986e6bc1-618e-41a4-86b5-48101df26e61 --environment ccfb6f2f-8458-435b-8123-9552625c7bff --lines 60)",
+      "mcp__railway__get_service_config",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway redeploy --service 986e6bc1-618e-41a4-86b5-48101df26e61 --environment ccfb6f2f-8458-435b-8123-9552625c7bff --yes)",
+      "mcp__railway__deploy",
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway --help)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway service --help)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway token --json)",
+      "mcp__railway__list_services",
+      "mcp__railway__create_service",
+      "mcp__railway__set_variables",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway variable set POSTGRES_USER=codelens POSTGRES_PASSWORD=codelens_prod_2026 POSTGRES_DB=codelens --service 02cf672c-168a-429a-9fcf-230de9c1ea5f --environment ccfb6f2f-8458-435b-8123-9552625c7bff --project 3a7411eb-1fc8-422a-8f85-aea7dad218b1)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway variable set \"POSTGRES_USER=codelens\" --service 02cf672c-168a-429a-9fcf-230de9c1ea5f --environment ccfb6f2f-8458-435b-8123-9552625c7bff)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.1\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway variable set \"POSTGRES_PASSWORD=codelens_prod_2026\" \"POSTGRES_DB=codelens\" --service 02cf672c-168a-429a-9fcf-230de9c1ea5f --environment ccfb6f2f-8458-435b-8123-9552625c7bff)"
     ]
   }
 }

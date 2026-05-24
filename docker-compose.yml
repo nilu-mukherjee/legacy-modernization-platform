@@ -21,12 +21,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-codelens}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-codelens}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-codelens}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,12 +39,12 @@ services:
     container_name: codelens-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     command: redis-server --maxmemory 256mb --maxmemory-policy noeviction
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -65,7 +65,7 @@ services:
       - DATABASE_SYNC_URL=postgresql://${POSTGRES_USER:-codelens}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-codelens}
       - REDIS_URL=redis://redis:6379/0
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
       - ./backend:/app
       - repos_temp:/tmp/repos
@@ -126,7 +126,7 @@ services:
       - WATCHPACK_POLLING=true
       - INTERNAL_API_URL=http://backend:8000
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./frontend:/app
       - /app/node_modules
