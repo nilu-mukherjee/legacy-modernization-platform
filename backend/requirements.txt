@@ -1,7 +1,7 @@
 # =============================================================================
 # CodeLens AI — Backend Dependencies
 # =============================================================================
-# Install with: pip install -r requirements.txt
+# Matches pyproject.toml exactly. Supported AST grammars: Python, JS, TS, Java.
 # =============================================================================
 
 # --- Web Framework ---
@@ -29,23 +29,12 @@ anthropic>=0.30.0
 openai>=1.30.0
 tiktoken>=0.7.0
 
-# --- AST Parsing ---
+# --- AST Parsing (4 languages: Python, JS, TS, Java) ---
 tree-sitter>=0.23.0
 tree-sitter-python>=0.23.0
 tree-sitter-javascript>=0.23.0
 tree-sitter-typescript>=0.23.0
 tree-sitter-java>=0.23.0
-tree-sitter-go>=0.23.0
-tree-sitter-rust>=0.23.0
-tree-sitter-ruby>=0.23.0
-tree-sitter-c>=0.23.0
-tree-sitter-cpp>=0.23.0
-tree-sitter-c-sharp>=0.23.0
-tree-sitter-php>=0.23.0
-tree-sitter-kotlin>=0.23.0
-tree-sitter-swift>=0.23.0
-tree-sitter-dart>=0.23.0
-tree-sitter-scala>=0.23.0
 
 # --- Security ---
 cryptography>=42.0.0
