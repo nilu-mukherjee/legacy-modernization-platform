@@ -72,6 +72,7 @@ For each recommendation provide:
 - implementation_steps: numbered steps
 - estimated_hours: realistic estimate
 - impact_score: 1-10
+- affected_files: list of relative file paths from repo root that need changes, inferred from the issues above (empty list if unknown)
 
 Respond in JSON:
 {{"executive_summary": "...", "recommendations": [...]}}"""

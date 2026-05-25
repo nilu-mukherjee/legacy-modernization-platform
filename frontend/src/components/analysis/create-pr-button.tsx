@@ -137,7 +137,32 @@ async function createGitHubPR(
     throw new Error(err.message || `Branch creation failed (${createBranch.status})`);
   }
 
-  const affectedFiles = rec.affected_files ?? [];
+  let affectedFiles = rec.affected_files ?? [];
+
+  // Fallback for older recs with no stored affected_files:
+  // extract filenames from rec text and search the repo for their full paths
+  if (affectedFiles.length === 0) {
+    const text = [rec.title, rec.description, rec.implementation_steps]
+      .filter(Boolean)
+      .join(" ");
+    const names = [...text.matchAll(/\b([\w.-]+\.(?:ts|tsx|js|jsx|py|java|go|rs|rb|cs|cpp|c|php|swift|kt|sh|sql|html|css))\b/g)]
+      .map((m) => m[1]);
+    const unique = [...new Set(names)];
+    const found: string[] = [];
+    for (const name of unique.slice(0, 10)) {
+      const searchRes = await fetch(
+        `https://api.github.com/search/code?q=filename:${encodeURIComponent(name)}+repo:${owner}/${repo}`,
+        { headers }
+      ).catch(() => null);
+      if (!searchRes?.ok) continue;
+      const searchData = await searchRes.json();
+      for (const item of searchData.items ?? []) {
+        found.push(item.path);
+      }
+    }
+    affectedFiles = [...new Set(found)];
+  }
+
   let committedFiles = 0;
 
   // For each affected file: fetch → AI refactor → commit to branch

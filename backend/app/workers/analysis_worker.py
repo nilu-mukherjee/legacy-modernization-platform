@@ -379,6 +379,7 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                         else rec.get("implementation_steps"),
                         estimated_hours=rec.get("estimated_hours"),
                         impact_score=rec.get("impact_score"),
+                        affected_files=rec.get("affected_files") or [],
                     ))
             except Exception as ai_err:
                 logger.warning("AI analysis failed (non-fatal): %s", ai_err)
