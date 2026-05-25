@@ -117,7 +117,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * Returns true for all requests (route protection is handled by
      * middleware instead).
      */
-    authorized({ auth: sessionAuth }) {
+    authorized({ auth: sessionAuth, request }) {
+      const { pathname } = request.nextUrl;
+      if (sessionAuth && pathname === "/login") {
+        return Response.redirect(new URL("/dashboard", request.nextUrl));
+      }
       return !!sessionAuth;
     },
   },
