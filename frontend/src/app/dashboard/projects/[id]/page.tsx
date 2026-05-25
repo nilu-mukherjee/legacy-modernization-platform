@@ -12,6 +12,7 @@ import {
   FileCode2,
   RefreshCw,
   Loader2,
+  CheckCircle2,
   ExternalLink,
   Bug,
   ShieldAlert,
@@ -279,6 +280,9 @@ export default function ProjectDetailPage() {
   // Reload data when job finishes
   useEffect(() => {
     if (!jobDone || !activeJobId) return;
+    // Optimistically clear the "analyzing" state so the banner disappears
+    // immediately instead of waiting for the loadData() round-trip.
+    setProject((p: any) => p ? { ...p, status: "completed" } : p);
     setActiveJobId(null);
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,7 +428,10 @@ export default function ProjectDetailPage() {
         <div className="glass rounded-xl p-4 border border-primary/20 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+              {progress >= 100
+                ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                : <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+              }
               <span className="text-sm font-medium">{currentStep || "Initializing…"}</span>
             </div>
             <span className="text-sm font-bold text-primary">{progress}%</span>
