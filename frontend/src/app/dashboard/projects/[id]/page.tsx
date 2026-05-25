@@ -718,7 +718,17 @@ export default function ProjectDetailPage() {
                     <p className="text-sm text-muted-foreground">{analysis.summary.executive_summary}</p>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">{recsTotal} recommendations</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">{recsTotal} recommendations</p>
+                  <button
+                    onClick={() => { setAiLoaded(false); }}
+                    style={{ cursor: "pointer" }}
+                    title="Refresh recommendations"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 {recsItems.map((rec: any, i: number) => (
                   <div key={i} className="rounded-lg border border-border p-4 space-y-2">
                     <div className="flex items-start justify-between gap-2">

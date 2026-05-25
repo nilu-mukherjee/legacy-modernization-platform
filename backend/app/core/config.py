@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     # ── Authentication (GitHub OAuth) ────────────────────────────────────
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
+    GITHUB_WEBHOOK_SECRET: str = ""  # set to enable PR-merge webhook signature verification
     AUTH_SECRET: str = "change-me-in-production"
 
     # ── AI Providers ─────────────────────────────────────────────────────
