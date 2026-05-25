@@ -167,7 +167,6 @@ async function createGitHubPR(
         body: buildPRBody(rec),
         head: branchName,
         base: defaultBranch,
-        draft: true,
       }),
     }
   );
