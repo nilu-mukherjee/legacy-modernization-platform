@@ -78,7 +78,9 @@
       "mcp__railway__environment_status",
       "mcp__railway__generate_domain",
       "Bash(railway domain *)",
-      "Bash(xargs grep -l '\"railway\"')"
+      "Bash(xargs grep -l '\"railway\"')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X DELETE 'https://api.vercel.com/v10/projects/prj_u4dOeS3mArWeV9GTB10Ep2anbE2r/env/__TRACKED_VAR__?teamId=team_rflqzi6XLuJPJ6rrUSErmRRQ' -H 'Authorization: Bearer vca_2n5PjBkjzdMCSFup42hYlWyr53tQP9Gs8DjindqIi23veVHfPd1pvUdg')",
+      "mcp__plugin_ecc_playwright__browser_navigate"
     ]
   }
 }
