@@ -5,6 +5,8 @@
  * All API calls go through this module.
  */
 
+import { signOut } from "next-auth/react";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 let _authToken: string | null = null;
@@ -39,7 +41,7 @@ async function apiFetch<T>(
 
   if (!response.ok) {
     if (response.status === 401) {
-      window.location.href = "/login";
+      await signOut({ callbackUrl: "/login" });
       throw new Error("Unauthorized");
     }
     const error = await response.json().catch(() => ({ detail: "Request failed" }));
