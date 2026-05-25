@@ -6,3 +6,4 @@ startCommand = "bash start.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
+watchPatterns = ["backend/**"]
