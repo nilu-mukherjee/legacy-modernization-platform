@@ -38,6 +38,10 @@ async function apiFetch<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
     const error = await response.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }

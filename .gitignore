@@ -60,3 +60,5 @@ repos_temp/
 
 # Build artifacts
 *.tgz
+
+.vercel
