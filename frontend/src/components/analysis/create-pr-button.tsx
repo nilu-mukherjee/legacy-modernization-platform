@@ -146,7 +146,7 @@ async function createGitHubPR(
       method: "PUT",
       headers,
       body: JSON.stringify({
-        message: `fix: ${rec.title}`,
+        message: `fix: ${rec.title} [skip ci]`,
         content: fileContent,
         branch: branchName,
       }),
