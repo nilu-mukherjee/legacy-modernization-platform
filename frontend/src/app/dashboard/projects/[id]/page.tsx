@@ -712,6 +712,12 @@ export default function ProjectDetailPage() {
               </div>
             ) : recsTotal > 0 ? (
               <div className="space-y-4">
+                <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 px-3 py-2 flex items-start gap-2">
+                  <Bot className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    AI-generated insights may contain errors. Always review suggested changes before applying them to production code.
+                  </p>
+                </div>
                 {analysis?.summary?.executive_summary && (
                   <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
                     <p className="text-sm font-medium text-primary mb-1">Executive Summary</p>
