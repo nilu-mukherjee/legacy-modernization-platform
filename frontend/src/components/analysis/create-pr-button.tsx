@@ -136,6 +136,27 @@ async function createGitHubPR(
     throw new Error(err.message || `Branch creation failed (${createBranch.status})`);
   }
 
+  // GitHub requires at least one commit between base and head to open a PR.
+  // Create a markdown file on the branch summarising the recommendation.
+  const filePath = `.codelens/${branchName.replace("codelens/", "")}.md`;
+  const fileContent = btoa(unescape(encodeURIComponent(buildPRBody(rec))));
+  const fileRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        message: `fix: ${rec.title}`,
+        content: fileContent,
+        branch: branchName,
+      }),
+    }
+  );
+  if (!fileRes.ok) {
+    const err = await fileRes.json().catch(() => ({}));
+    throw new Error(err.message || `Commit creation failed (${fileRes.status})`);
+  }
+
   const prRes = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/pulls`,
     {
