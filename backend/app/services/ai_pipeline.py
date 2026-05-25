@@ -10,6 +10,14 @@ interface.  Implements the two-tier strategy:
 3. **On-demand refactoring** (powerful model) — code generation.
 
 Provider selection is driven by ``settings.AI_PROVIDER``.
+
+Prompt caching
+--------------
+For the Anthropic provider every call separates the static instruction text
+(system) from the dynamic data (user message).  The system block is marked
+with ``cache_control: {type: ephemeral}`` so Claude caches it for up to
+5 minutes across repeated calls, cutting both latency and cost significantly
+during bulk file analysis.
 """
 
 from __future__ import annotations
@@ -21,41 +29,36 @@ from typing import Any
 from app.core.config import settings
 
 # ── Prompt Templates ─────────────────────────────────────────────────────────
+# Each prompt is split into a SYSTEM part (static, cacheable) and a USER part
+# (dynamic, injected per call).  Only the Anthropic provider uses this split
+# for caching; the OpenAI provider treats the system part as a system message.
 
-FILE_ANALYSIS_PROMPT = """You are a senior software architect analyzing code for technical debt.
+# -- File analysis ------------------------------------------------------------
 
-Analyze the following {language} code and identify:
+FILE_ANALYSIS_SYSTEM = """You are a senior software architect analyzing code for technical debt.
+
+Analyze the code provided by the user and identify:
 1. Code smells (with severity: low/medium/high/critical)
 2. Anti-patterns
 3. Potential bugs
 4. Security concerns
 5. Deprecated API usage
 
-File: {file_path}
-Existing metrics: complexity={complexity}, loc={loc}, nesting={nesting}
+Respond in JSON format:
+{"issues": [{"severity": "...", "title": "...", "description": "...", "suggestion": "..."}], "opportunities": [{"title": "...", "description": "..."}]}"""
+
+FILE_ANALYSIS_USER = """File: {file_path}
+Language: {language}
+Metrics: complexity={complexity}, loc={loc}, nesting={nesting}
 
 Code:
 ```{language}
 {code}
-```
+```"""
 
-Respond in JSON format:
-{{"issues": [{{"severity": "...", "title": "...", "description": "...", "suggestion": "..."}}], "opportunities": [{{"title": "...", "description": "..."}}]}}"""
+# -- Synthesis ----------------------------------------------------------------
 
-SYNTHESIS_PROMPT = """You are a senior application modernization architect.
-
-Repository: {repo_name}
-Languages: {languages}
-Total Files: {total_files}, LOC: {total_loc}
-
-Quantitative analysis results:
-{metrics_summary}
-
-Top file-level issues:
-{top_issues}
-
-Dependency findings:
-{dependency_summary}
+SYNTHESIS_SYSTEM = """You are a senior application modernization architect.
 
 Generate a comprehensive modernization plan with:
 1. Executive summary (2-3 sentences)
@@ -75,29 +78,48 @@ For each recommendation provide:
 - affected_files: list of relative file paths from repo root that need changes, inferred from the issues above (empty list if unknown)
 
 Respond in JSON:
-{{"executive_summary": "...", "recommendations": [...]}}"""
+{"executive_summary": "...", "recommendations": [...]}"""
 
-REFACTOR_PROMPT = """You are a senior software engineer performing a code refactoring.
+SYNTHESIS_USER = """Repository: {repo_name}
+Languages: {languages}
+Total Files: {total_files}, LOC: {total_loc}
 
-Context:
-- Recommendation: {recommendation_title}
-- Rationale: {rationale}
-- Language: {language}
-- File: {file_path}
+Quantitative analysis results:
+{metrics_summary}
 
-Original code:
-```{language}
-{code}
-```
+Top file-level issues:
+{top_issues}
 
-Refactor this code to address the recommendation. Rules:
+Dependency findings:
+{dependency_summary}"""
+
+# -- Refactoring --------------------------------------------------------------
+
+REFACTOR_SYSTEM = """You are a senior software engineer performing a code refactoring.
+
+Rules:
 1. Preserve all existing functionality
 2. Maintain the same API/interface
-3. Follow {language} best practices and modern idioms
+3. Follow the target language's best practices and modern idioms
 4. Add appropriate comments explaining changes
 5. Keep the refactored code production-ready
 
 Return ONLY the refactored code, no explanations."""
+
+REFACTOR_USER = """Recommendation: {recommendation_title}
+Rationale: {rationale}
+Language: {language}
+File: {file_path}
+
+Original code:
+```{language}
+{code}
+```"""
+
+# Legacy single-string constants kept for any external callers.
+FILE_ANALYSIS_PROMPT = FILE_ANALYSIS_SYSTEM + "\n\n" + FILE_ANALYSIS_USER
+SYNTHESIS_PROMPT = SYNTHESIS_SYSTEM + "\n\n" + SYNTHESIS_USER
+REFACTOR_PROMPT = REFACTOR_SYSTEM + "\n\n" + REFACTOR_USER
 
 
 # ── Abstract Base ────────────────────────────────────────────────────────────
@@ -107,12 +129,30 @@ class AIProvider(ABC):
     """Abstract base for AI provider integrations."""
 
     @abstractmethod
-    async def complete(self, prompt: str, *, model: str | None = None) -> str:
-        """Send a prompt and return the text response."""
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Send a prompt and return the text response.
+
+        Args:
+            prompt: The user-turn message.
+            system: Optional static system instruction (cached on Anthropic).
+            model: Override the default model.
+        """
         ...
 
     @abstractmethod
-    async def complete_json(self, prompt: str, *, model: str | None = None) -> dict:
+    async def complete_json(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> dict:
         """Send a prompt and parse the response as JSON."""
         ...
 
@@ -121,24 +161,46 @@ class AIProvider(ABC):
 
 
 class AnthropicProvider(AIProvider):
-    """Anthropic Claude integration."""
+    """Anthropic Claude integration with prompt caching on system blocks."""
 
     def __init__(self) -> None:
         from anthropic import AsyncAnthropic
 
         self._client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    async def complete(self, prompt: str, *, model: str | None = None) -> str:
-        response = await self._client.messages.create(
-            model=model or settings.AI_MODEL_POWERFUL,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        )
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        kwargs: dict[str, Any] = {
+            "model": model or settings.AI_MODEL_POWERFUL,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            # Mark the system block as cacheable so repeated calls within 5 min
+            # hit the prompt cache instead of reprocessing the full token count.
+            kwargs["system"] = [
+                {
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+        response = await self._client.messages.create(**kwargs)
         return response.content[0].text
 
-    async def complete_json(self, prompt: str, *, model: str | None = None) -> dict:
-        text = await self.complete(prompt, model=model)
-        # Strip markdown code fences if present.
+    async def complete_json(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> dict:
+        text = await self.complete(prompt, system=system, model=model)
         text = text.strip()
         if text.startswith("```"):
             text = "\n".join(text.split("\n")[1:])
@@ -158,16 +220,32 @@ class OpenAIProvider(AIProvider):
 
         self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-    async def complete(self, prompt: str, *, model: str | None = None) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        messages: list[dict] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
         response = await self._client.chat.completions.create(
             model=model or settings.AI_MODEL_POWERFUL,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=4096,
         )
         return response.choices[0].message.content or ""
 
-    async def complete_json(self, prompt: str, *, model: str | None = None) -> dict:
-        text = await self.complete(prompt, model=model)
+    async def complete_json(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        model: str | None = None,
+    ) -> dict:
+        text = await self.complete(prompt, system=system, model=model)
         text = text.strip()
         if text.startswith("```"):
             text = "\n".join(text.split("\n")[1:])
@@ -180,12 +258,7 @@ class OpenAIProvider(AIProvider):
 
 
 def get_ai_provider() -> AIProvider:
-    """
-    Create the AI provider based on ``settings.AI_PROVIDER``.
-
-    Returns:
-        An :class:`AnthropicProvider` or :class:`OpenAIProvider`.
-    """
+    """Create the AI provider based on ``settings.AI_PROVIDER``."""
     if settings.AI_PROVIDER == "openai":
         return OpenAIProvider()
     return AnthropicProvider()
@@ -203,22 +276,28 @@ async def analyze_file_with_ai(
     nesting: int,
     provider: AIProvider | None = None,
 ) -> dict[str, Any]:
-    """
-    Analyse a single file with the **fast** (cheap) AI model.
+    """Analyse a single file with the **fast** (cheap) AI model.
+
+    The static system prompt is cached on Anthropic — only the dynamic
+    file metrics + code are sent uncached on repeat calls.
 
     Returns parsed JSON with ``issues`` and ``opportunities``.
     """
     provider = provider or get_ai_provider()
-    prompt = FILE_ANALYSIS_PROMPT.format(
+    user_prompt = FILE_ANALYSIS_USER.format(
         language=language,
         file_path=file_path,
         complexity=complexity,
         loc=loc,
         nesting=nesting,
-        code=code[:16000],  # Truncate to avoid token limits.
+        code=code[:16000],
     )
     try:
-        return await provider.complete_json(prompt, model=settings.AI_MODEL_FAST)
+        return await provider.complete_json(
+            user_prompt,
+            system=FILE_ANALYSIS_SYSTEM,
+            model=settings.AI_MODEL_FAST,
+        )
     except Exception:
         return {"issues": [], "opportunities": []}
 
@@ -233,13 +312,12 @@ async def generate_recommendations(
     dependency_summary: str,
     provider: AIProvider | None = None,
 ) -> dict[str, Any]:
-    """
-    Synthesise cross-repo recommendations with the **powerful** model.
+    """Synthesise cross-repo recommendations with the **powerful** model.
 
     Returns parsed JSON with ``executive_summary`` and ``recommendations``.
     """
     provider = provider or get_ai_provider()
-    prompt = SYNTHESIS_PROMPT.format(
+    user_prompt = SYNTHESIS_USER.format(
         repo_name=repo_name,
         languages=json.dumps(languages),
         total_files=total_files,
@@ -249,7 +327,11 @@ async def generate_recommendations(
         dependency_summary=dependency_summary,
     )
     try:
-        return await provider.complete_json(prompt, model=settings.AI_MODEL_POWERFUL)
+        return await provider.complete_json(
+            user_prompt,
+            system=SYNTHESIS_SYSTEM,
+            model=settings.AI_MODEL_POWERFUL,
+        )
     except Exception:
         return {"executive_summary": "AI analysis unavailable.", "recommendations": []}
 
@@ -262,17 +344,20 @@ async def generate_refactoring(
     file_path: str,
     provider: AIProvider | None = None,
 ) -> str:
-    """
-    Generate refactored code on demand with the **powerful** model.
+    """Generate refactored code on demand with the **powerful** model.
 
     Returns the refactored code as a string.
     """
     provider = provider or get_ai_provider()
-    prompt = REFACTOR_PROMPT.format(
+    user_prompt = REFACTOR_USER.format(
         recommendation_title=recommendation_title,
         rationale=rationale,
         language=language,
         file_path=file_path,
         code=code[:16000],
     )
-    return await provider.complete(prompt, model=settings.AI_MODEL_POWERFUL)
+    return await provider.complete(
+        user_prompt,
+        system=REFACTOR_SYSTEM,
+        model=settings.AI_MODEL_POWERFUL,
+    )
