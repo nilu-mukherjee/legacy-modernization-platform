@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import ScoreGauge from "@/components/analysis/score-gauge";
 import SubScoreRadar from "@/components/analysis/sub-score-radar";
+import CreatePRButton from "@/components/analysis/create-pr-button";
 import { severityBgColor } from "@/lib/utils";
 import {
   getProject,
@@ -735,9 +736,18 @@ export default function ProjectDetailPage() {
                     {rec.description && (
                       <p className="text-xs text-muted-foreground">{rec.description}</p>
                     )}
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      {rec.estimated_hours && <span>~{rec.estimated_hours}h effort</span>}
-                      {rec.impact_score && <span>Impact: {rec.impact_score}/10</span>}
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex gap-4 text-xs text-muted-foreground">
+                        {rec.estimated_hours && <span>~{rec.estimated_hours}h effort</span>}
+                        {rec.impact_score && <span>Impact: {rec.impact_score}/10</span>}
+                      </div>
+                      {project?.repo_url && (session as any)?.accessToken && (
+                        <CreatePRButton
+                          rec={rec}
+                          repoUrl={project.repo_url}
+                          accessToken={(session as any).accessToken}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
