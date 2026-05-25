@@ -138,10 +138,14 @@ export async function getRecommendations(projectId: string, skip = 0, limit = 10
   );
 }
 
-export async function refactorRecommendation(projectId: string, recId: string) {
-  return apiFetch<{ before_code: string; after_code: string; explanation: string }>(
+export async function refactorRecommendation(
+  projectId: string,
+  recId: string,
+  payload?: { file_path?: string; file_content?: string; language?: string }
+) {
+  return apiFetch<{ file_path?: string; language?: string; before_code: string; after_code: string; explanation: string }>(
     `/api/v1/projects/${projectId}/recommendations/${recId}/refactor`,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify(payload ?? {}) }
   );
 }
 

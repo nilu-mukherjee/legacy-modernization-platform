@@ -45,6 +45,8 @@ class RefactorRequest(BaseModel):
     """Optional context for on-demand refactoring."""
 
     file_path: Optional[str] = None
+    file_content: Optional[str] = None
+    language: Optional[str] = None
     additional_context: Optional[str] = None
 
 

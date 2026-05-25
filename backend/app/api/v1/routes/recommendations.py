@@ -24,6 +24,7 @@ from app.models.analysis import Analysis
 from app.models.project import Project
 from app.models.recommendation import Recommendation
 from app.models.user import User
+from app.services.ai_pipeline import generate_refactoring, get_ai_provider
 from app.schemas.recommendation import (
     RecommendationListResponse,
     RecommendationResponse,
@@ -152,8 +153,29 @@ async def refactor_recommendation(
     if rec is None:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
-    # On-demand AI refactoring is not yet implemented; returns stored code or a
-    # placeholder. Wire up ai_pipeline.generate_refactoring() here when ready.
+    # If the caller supplies file_content, generate a real AI refactoring.
+    if payload and payload.file_content:
+        language = payload.language or "unknown"
+        file_path = payload.file_path or "unknown"
+        provider = get_ai_provider()
+        after_code = await generate_refactoring(
+            code=payload.file_content,
+            recommendation_title=rec.title,
+            rationale=rec.rationale or rec.description or "",
+            language=language,
+            file_path=file_path,
+            provider=provider,
+        )
+        return RefactorResponse(
+            recommendation_id=rec.id,
+            file_path=file_path,
+            language=language,
+            before_code=payload.file_content,
+            after_code=after_code,
+            explanation=rec.rationale or "AI-generated refactoring.",
+        )
+
+    # Fall back to stored snippets when no file content is provided.
     return RefactorResponse(
         recommendation_id=rec.id,
         file_path=payload.file_path if payload else None,

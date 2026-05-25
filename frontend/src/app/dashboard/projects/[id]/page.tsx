@@ -746,6 +746,8 @@ export default function ProjectDetailPage() {
                           rec={rec}
                           repoUrl={project.repo_url}
                           accessToken={(session as any).accessToken}
+                          projectId={projectId}
+                          backendToken={(session as any)?.backendToken ?? ""}
                         />
                       )}
                     </div>
