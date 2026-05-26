@@ -30,6 +30,9 @@ out/
 .vscode/
 .idea/
 .claude/
+
+# Internal docs
+docs/
 *.swp
 *.swo
 *~
