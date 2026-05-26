@@ -187,7 +187,7 @@ export default function ProjectsPage() {
                   </div>
 
                   {/* Row 2: language tags left · date/time right */}
-                  <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex w-full items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                       {isAnalyzing ? (
                         <>
