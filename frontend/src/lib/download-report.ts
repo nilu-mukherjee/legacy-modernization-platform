@@ -42,8 +42,8 @@ function trunc(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
-const IBM_PLEX_REGULAR_URL = "https://cdn.jsdelivr.net/npm/@ibm/plex@6.4.0/IBM-Plex-Sans/fonts/complete/ttf/IBMPlexSans-Regular.ttf";
-const IBM_PLEX_BOLD_URL    = "https://cdn.jsdelivr.net/npm/@ibm/plex@6.4.0/IBM-Plex-Sans/fonts/complete/ttf/IBMPlexSans-Bold.ttf";
+const IBM_PLEX_REGULAR_URL = "/fonts/IBMPlexSans-Regular.ttf";
+const IBM_PLEX_BOLD_URL    = "/fonts/IBMPlexSans-Bold.ttf";
 
 let _ibmPlexCache: { regular: string; bold: string } | null = null;
 
