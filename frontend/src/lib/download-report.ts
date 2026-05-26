@@ -179,14 +179,30 @@ export async function downloadReport(projectId: string): Promise<void> {
 
   y = R3 + 22;  // advance past header rows
 
-  // Score badge
+  // Score badge — score % and grade on same baseline with horizontal gap
   if (anal?.overall_score != null) {
     const score = Math.round(anal.overall_score);
     const grade = anal.grade ?? "—";
     const [r, g, b] = scoreColor(score);
 
-    const badgeW = 170;
-    const badgeH = 68;
+    // Pre-compute score number width so we can place "Grade X" inline
+    doc.setFont(FONT, "bold");
+    doc.setFontSize(30);
+    const scoreStr = `${score}%`;
+    const scoreW = doc.getTextWidth(scoreStr);
+
+    // Pre-compute grade text width
+    doc.setFont(FONT, "normal");
+    doc.setFontSize(13);
+    const gradeStr = `Grade ${grade}`;
+    const gradeW = doc.getTextWidth(gradeStr);
+
+    const padL = 18;
+    const gap = 16;
+    const padR = 18;
+    const badgeW = Math.max(190, padL + scoreW + gap + gradeW + padR);
+    const badgeH = 60;
+
     doc.setFillColor(r, g, b);
     doc.roundedRect(ML, y, badgeW, badgeH, 6, 6, "F");
 
@@ -194,35 +210,32 @@ export async function downloadReport(projectId: string): Promise<void> {
     doc.setFont(FONT, "normal");
     doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.text("SCORE", ML + 14, y + 16);
+    doc.text("MODERNIZATION SCORE", ML + padL, y + 16);
 
-    // Row 1: score number — large, left-aligned, no overflow
+    // Score number — left side, large
     doc.setFont(FONT, "bold");
-    doc.setFontSize(28);
+    doc.setFontSize(30);
     doc.setTextColor(255, 255, 255);
-    doc.text(`${score}%`, ML + 14, y + 44);
+    const baseline = y + 46;
+    doc.text(scoreStr, ML + padL, baseline);
 
-    // Row 2: grade on its own line, well below score baseline
+    // Grade — same baseline, immediately to the right of score number
     doc.setFont(FONT, "normal");
-    doc.setFontSize(11);
+    doc.setFontSize(13);
     doc.setTextColor(230, 240, 255);
-    doc.text(`Grade ${grade}`, ML + 14, y + 60);
+    doc.text(gradeStr, ML + padL + scoreW + gap, baseline);
 
-    // Labels right-aligned outside badge
+    // Right side: score / 100
     doc.setFont(FONT, "normal");
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
-    doc.text("MODERNIZATION SCORE", MR, y + 20, { align: "right" });
+    doc.text("OUT OF 100", MR, y + 20, { align: "right" });
     doc.setFont(FONT, "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(18);
     doc.setTextColor(r, g, b);
-    doc.text(`${score} / 100`, MR, y + 42, { align: "right" });
-    doc.setFont(FONT, "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(...GRAY);
-    doc.text(`Grade ${grade}`, MR, y + 58, { align: "right" });
+    doc.text(`${score} / 100`, MR, y + 46, { align: "right" });
 
-    y += badgeH + 14;
+    y += badgeH + 16;
   } else {
     y += 10;
   }
