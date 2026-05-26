@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nilu Mukherjee.
+# Licensed under AGPL-3.0. See LICENSE at repo root.
+
 """
 AI Pipeline Service
 ===================

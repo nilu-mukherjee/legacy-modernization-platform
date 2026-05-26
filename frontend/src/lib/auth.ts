@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 Nilu Mukherjee.
+ * Licensed under AGPL-3.0. See LICENSE at repo root.
+ */
+
 /**
  * @fileoverview Auth.js v5 (NextAuth) configuration for CodeLens AI.
  *
