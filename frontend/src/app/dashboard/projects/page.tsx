@@ -151,7 +151,7 @@ export default function ProjectsPage() {
                   </div>
                 )}
                 {/* Main clickable area */}
-                <Link href={`/dashboard/projects/${project.id}`} className="flex-1 min-w-0 p-5">
+                <Link href={`/dashboard/projects/${project.id}`} className="flex-1 min-w-0 block p-5">
                   <div className="flex items-center gap-2 mb-3 min-w-0">
                     <FolderGit2 className="h-5 w-5 text-primary shrink-0" />
                     <span className="font-semibold truncate">{project.name}</span>
