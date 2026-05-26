@@ -57,9 +57,35 @@ from app.services.dependency_analyzer import (
     parse_requirements_txt,
 )
 from app.services.scoring import AnalysisMetrics, calculate_modernization_score
-from app.services.ai_pipeline import generate_recommendations, get_ai_provider
+from app.services.ai_pipeline import generate_recommendations, get_ai_provider, start_token_tracking
 
 logger = logging.getLogger(__name__)
+
+_AI_PRICING: dict[str, tuple[float, float]] = {
+    "claude-haiku": (0.80, 4.0),
+    "claude-sonnet": (3.0, 15.0),
+    "claude-opus": (15.0, 75.0),
+    "gpt-4o": (2.50, 10.0),
+}
+
+
+def _compute_ai_cost(usage: list[dict]) -> tuple[int, int, float]:
+    """Return (total_input_tokens, total_output_tokens, estimated_usd) from usage buffer."""
+    total_in = total_out = 0
+    cost = 0.0
+    for u in usage:
+        model_key = u.get("model", "")
+        input_price, output_price = 3.0, 15.0
+        for prefix, prices in _AI_PRICING.items():
+            if prefix in model_key:
+                input_price, output_price = prices
+                break
+        n_in = u.get("input_tokens", 0) or 0
+        n_out = u.get("output_tokens", 0) or 0
+        total_in += n_in
+        total_out += n_out
+        cost += (n_in * input_price + n_out * output_price) / 1_000_000
+    return total_in, total_out, cost
 
 
 async def _update_progress(
@@ -351,6 +377,7 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                     f"test_files={scoring_metrics.test_file_count}"
                 )
 
+                usage_buf = start_token_tracking()
                 ai_result = await generate_recommendations(
                     repo_name=project.name,
                     languages=project.detected_languages or {},
@@ -362,8 +389,18 @@ async def run_full_analysis(ctx: dict, project_id: str, job_id: str) -> None:
                     provider=get_ai_provider(),
                 )
 
+                summary: dict = {}
                 if ai_result.get("executive_summary"):
-                    analysis.summary = {"executive_summary": ai_result["executive_summary"]}
+                    summary["executive_summary"] = ai_result["executive_summary"]
+                total_in, total_out, ai_cost = _compute_ai_cost(usage_buf)
+                if total_in > 0 or total_out > 0:
+                    summary.update({
+                        "ai_tokens_input": total_in,
+                        "ai_tokens_output": total_out,
+                        "ai_cost_usd": round(ai_cost, 4),
+                    })
+                if summary:
+                    analysis.summary = summary
 
                 for rec in ai_result.get("recommendations", [])[:10]:
                     db.add(Recommendation(

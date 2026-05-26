@@ -85,13 +85,13 @@
 
 ### Day 2 — 27 May (Wed) — UX Polish for Demo
 
-- [ ] **Dismiss button** on each recommendation card
-  - [ ] Backend: `DELETE /api/v1/recommendations/{id}`
-  - [ ] Frontend: trash icon + optimistic remove from list
-- [ ] **Estimated AI cost display** ("This analysis used $X.XX of AI compute")
-  - [ ] Track tokens used in analysis row
-  - [ ] Show on overview tab
-- [ ] **Empty-state CTAs** on every tab (debt/deps/AI when no data)
+- [x] **Dismiss button** on each recommendation card
+  - [x] Backend: `DELETE /api/v1/recommendations/{id}`
+  - [x] Frontend: trash icon + optimistic remove from list
+- [x] **Estimated AI cost display** ("This analysis used $X.XX of AI compute")
+  - [x] Track tokens via contextvar in ai_pipeline.py
+  - [x] Show on overview tab (with token count)
+- [x] **Empty-state CTAs** on debt/deps/AI tabs improved
 - [ ] **Loading skeletons** consistent across all tabs
 - [ ] **Polish error states** — friendly messages, not raw API errors
 
@@ -216,6 +216,10 @@ When asked "what makes this different":
 
 - Day 1 shipped: AI retry, rate limit, sample repos
 - Next: dismiss button + cost display + empty-state CTAs
+
+### 28 May 2026
+
+- Day 2 shipped: dismiss button (DELETE endpoint + trash icon + optimistic remove), AI cost display (contextvar token tracking → stored in analysis.summary), improved empty states on debt/deps tabs
 
 ### 28 May 2026
 

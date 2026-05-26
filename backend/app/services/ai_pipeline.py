@@ -27,6 +27,7 @@ import json
 import logging
 import random
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, TypeVar
 
 from app.core.config import settings
@@ -34,6 +35,16 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+
+# Per-async-context token accumulator — populated by providers when tracking is active.
+_usage_buf: ContextVar[list[dict] | None] = ContextVar("_usage_buf", default=None)
+
+
+def start_token_tracking() -> list[dict]:
+    """Begin collecting AI token usage for this async context. Returns the buffer."""
+    buf: list[dict] = []
+    _usage_buf.set(buf)
+    return buf
 
 
 async def _retry_with_backoff(
@@ -248,6 +259,13 @@ class AnthropicProvider(AIProvider):
             lambda: self._client.messages.create(**kwargs),
             label="anthropic.messages.create",
         )
+        buf = _usage_buf.get()
+        if buf is not None and hasattr(response, "usage"):
+            buf.append({
+                "input_tokens": getattr(response.usage, "input_tokens", 0) or 0,
+                "output_tokens": getattr(response.usage, "output_tokens", 0) or 0,
+                "model": kwargs.get("model", ""),
+            })
         return response.content[0].text
 
     async def complete_json(
@@ -296,6 +314,13 @@ class OpenAIProvider(AIProvider):
             ),
             label="openai.chat.completions.create",
         )
+        buf = _usage_buf.get()
+        if buf is not None and hasattr(response, "usage") and response.usage:
+            buf.append({
+                "input_tokens": response.usage.prompt_tokens or 0,
+                "output_tokens": response.usage.completion_tokens or 0,
+                "model": model or settings.AI_MODEL_POWERFUL,
+            })
         return response.choices[0].message.content or ""
 
     async def complete_json(

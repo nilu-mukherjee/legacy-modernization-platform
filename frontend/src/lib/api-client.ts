@@ -138,6 +138,12 @@ export async function getRecommendations(projectId: string, skip = 0, limit = 10
   );
 }
 
+export async function deleteRecommendation(projectId: string, recId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/projects/${projectId}/recommendations/${recId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function refactorRecommendation(
   projectId: string,
   recId: string,

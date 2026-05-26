@@ -121,6 +121,35 @@ async def get_recommendation(
     return RecommendationResponse.model_validate(rec)
 
 
+@router.delete(
+    "/projects/{project_id}/recommendations/{rec_id}",
+    status_code=204,
+)
+async def dismiss_recommendation(
+    project_id: uuid.UUID,
+    rec_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dismiss (permanently delete) a single AI recommendation."""
+    proj = await db.execute(
+        select(Project).where(
+            Project.id == project_id, Project.user_id == current_user.id
+        )
+    )
+    if proj.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    result = await db.execute(
+        select(Recommendation).where(Recommendation.id == rec_id)
+    )
+    rec = result.scalar_one_or_none()
+    if rec is None:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    await db.delete(rec)
+    await db.commit()
+
+
 @router.post(
     "/projects/{project_id}/recommendations/{rec_id}/refactor",
     response_model=RefactorResponse,

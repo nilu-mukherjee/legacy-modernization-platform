@@ -19,6 +19,8 @@ import {
   Lightbulb,
   Palette,
   BookOpen,
+  Trash2,
+  Sparkles,
 } from "lucide-react";
 import ScoreGauge from "@/components/analysis/score-gauge";
 import SubScoreRadar from "@/components/analysis/sub-score-radar";
@@ -32,6 +34,7 @@ import {
   getRecommendations,
   reAnalyze,
   setAuthToken,
+  deleteRecommendation,
 } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
 import { useJobStatus } from "@/hooks/use-job-status";
@@ -149,6 +152,7 @@ export default function ProjectDetailPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [aiLoaded, setAiLoaded] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [dismissingIds, setDismissingIds] = useState<Set<string>>(new Set());
 
   async function loadData() {
     try {
@@ -273,6 +277,29 @@ export default function ProjectDetailPage() {
     } finally {
       setReanalyzing(false);
     }
+  }
+
+  async function handleDismiss(recId: string) {
+    setDismissingIds((prev) => new Set(prev).add(recId));
+    setRecs((prev: any) =>
+      prev
+        ? {
+            ...prev,
+            recommendations: prev.recommendations.filter((r: any) => r.id !== recId),
+            total: Math.max(0, (prev.total ?? 1) - 1),
+          }
+        : prev
+    );
+    try {
+      await deleteRecommendation(projectId, recId);
+    } catch {
+      setAiLoaded(false);
+    }
+    setDismissingIds((prev) => {
+      const s = new Set(prev);
+      s.delete(recId);
+      return s;
+    });
   }
 
   const { progress, currentStep, isComplete: jobDone } = useJobStatus(activeJobId);
@@ -558,6 +585,27 @@ export default function ProjectDetailPage() {
               Object.keys(project.detected_languages).length > 0 && (
                 <LanguageBreakdown languages={project.detected_languages} />
               )}
+
+            {analysis?.summary?.ai_cost_usd !== undefined && (
+              <div className="mt-2 rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">AI Analysis Cost</p>
+                    {analysis.summary.ai_tokens_input !== undefined && (
+                      <p className="text-xs text-muted-foreground">
+                        {(((analysis.summary.ai_tokens_input as number) + (analysis.summary.ai_tokens_output as number)) / 1000).toFixed(1)}k tokens
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <span className="text-lg font-bold text-primary">
+                  {(analysis.summary.ai_cost_usd as number) < 0.01
+                    ? "<$0.01"
+                    : `$${(analysis.summary.ai_cost_usd as number).toFixed(2)}`}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -640,10 +688,15 @@ export default function ProjectDetailPage() {
                 />
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertTriangle className="mx-auto h-8 w-8 mb-3 text-yellow-500/50" />
-                <p className="text-sm">
-                  {Object.keys(debtByCategory).length === 0 ? "No tech debt items found." : "No issues in this category."}
+              <div className="text-center py-12 text-muted-foreground">
+                <AlertTriangle className="mx-auto h-10 w-10 mb-4 text-yellow-500/40" />
+                <p className="text-sm font-medium mb-1">
+                  {Object.keys(debtByCategory).length === 0 ? "No tech debt detected" : "No issues in this category"}
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  {Object.keys(debtByCategory).length === 0
+                    ? "This repository looks clean. Run re-analysis anytime to check again."
+                    : "Try a different category above or run re-analysis."}
                 </p>
               </div>
             )}
@@ -697,12 +750,11 @@ export default function ProjectDetailPage() {
                 />
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Package className="mx-auto h-8 w-8 mb-3 text-accent" />
-                <p>
-                  {isAnalyzing
-                    ? "Analysis in progress…"
-                    : "No dependency data found."}
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="mx-auto h-10 w-10 mb-4 text-accent/50" />
+                <p className="text-sm font-medium mb-1">No dependencies found</p>
+                <p className="text-xs text-muted-foreground/70">
+                  No package.json or requirements.txt was detected in this repository.
                 </p>
               </div>
             )}
@@ -743,10 +795,10 @@ export default function ProjectDetailPage() {
                   </button>
                 </div>
                 {recsItems.map((rec: any, i: number) => (
-                  <div key={i} className="rounded-lg border border-border p-4 space-y-2">
+                  <div key={rec.id ?? i} className="rounded-lg border border-border p-4 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-sm font-semibold">{rec.title}</span>
-                      <div className="flex gap-1 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                           rec.priority === "critical" ? "bg-red-500/10 text-red-500" :
                           rec.priority === "high" ? "bg-orange-500/10 text-orange-500" :
@@ -754,6 +806,14 @@ export default function ProjectDetailPage() {
                           "bg-muted text-muted-foreground"
                         }`}>{rec.priority}</span>
                         <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{rec.category}</span>
+                        <button
+                          onClick={() => handleDismiss(rec.id)}
+                          disabled={dismissingIds.has(rec.id)}
+                          title="Dismiss recommendation"
+                          className="ml-1 rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                     {rec.description && (
