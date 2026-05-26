@@ -141,8 +141,15 @@ export default function ProjectsPage() {
             return (
               <div
                 key={project.id}
-                className="flex glass rounded-xl transition-all hover:glow-border hover:-translate-y-0.5"
+                className={`relative flex glass rounded-xl transition-all hover:glow-border hover:-translate-y-0.5${downloadingId === project.id ? " pointer-events-none" : ""}`}
               >
+                {/* Generating report overlay */}
+                {downloadingId === project.id && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center gap-2.5 rounded-xl bg-background/80 backdrop-blur-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm font-medium text-foreground">Generating Report...</span>
+                  </div>
+                )}
                 {/* Main clickable area */}
                 <Link href={`/dashboard/projects/${project.id}`} className="flex-1 min-w-0 p-5">
                   <div className="flex items-center gap-2 mb-3 min-w-0">
