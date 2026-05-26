@@ -165,8 +165,8 @@ export default function ProjectsPage() {
 
                   {/* Row 1: status · files · LOC · date/time right */}
                   <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className={`flex items-center gap-1 font-medium ${color}`}>
+                    <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                      <span className={`flex items-center gap-1 font-medium whitespace-nowrap ${color}`}>
                         <Icon className={`h-3.5 w-3.5${spin ? " animate-spin" : ""}`} />
                         {label}
                       </span>
@@ -178,10 +178,10 @@ export default function ProjectsPage() {
                       ) : (
                         <>
                           {project.total_files > 0 && (
-                            <span>{project.total_files.toLocaleString()} files</span>
+                            <span className="whitespace-nowrap">{project.total_files.toLocaleString()} files</span>
                           )}
                           {project.total_loc > 0 && (
-                            <span>{project.total_loc.toLocaleString()} LOC</span>
+                            <span className="whitespace-nowrap">{project.total_loc.toLocaleString()} LOC</span>
                           )}
                         </>
                       )}
