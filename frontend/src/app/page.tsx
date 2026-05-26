@@ -416,7 +416,7 @@ export default async function LandingPage() {
             <span>CodeLens AI</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            MIT License · Built for HyKr Build Challenge 2026
+            AGPL-3.0 License · Built for HyKr Build Challenge 2026
           </div>
         </div>
       </footer>
