@@ -117,8 +117,8 @@ export default function NewProjectPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const repoUrl = selected?.html_url || manualUrl.trim();
-    if (!repoUrl) return;
-    await startAnalysis(repoUrl, name || undefined);
+    if (!repoUrl || !name.trim()) return;
+    await startAnalysis(repoUrl, name.trim());
   }
 
   async function startAnalysis(repoUrl: string, projectName?: string) {
@@ -311,7 +311,7 @@ export default function NewProjectPage() {
         {/* Project name */}
         <div>
           <label htmlFor="project-name" className="block text-sm font-medium mb-2">
-            Project Name <span className="text-muted-foreground">(optional)</span>
+            Project Name <span className="text-destructive">*</span>
           </label>
           <input
             id="project-name"
@@ -319,6 +319,7 @@ export default function NewProjectPage() {
             placeholder="My Legacy App"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            required
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
@@ -329,7 +330,7 @@ export default function NewProjectPage() {
 
         <button
           type="submit"
-          disabled={loading || (!selected && !manualUrl.trim())}
+          disabled={loading || (!selected && !manualUrl.trim()) || !name.trim()}
           className="w-full rounded-xl gradient-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {loading ? (

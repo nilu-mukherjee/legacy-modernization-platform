@@ -92,8 +92,8 @@
   - [x] Track tokens via contextvar in ai_pipeline.py
   - [x] Show on overview tab (with token count)
 - [x] **Empty-state CTAs** on debt/deps/AI tabs improved
-- [ ] **Loading skeletons** consistent across all tabs
-- [ ] **Polish error states** — friendly messages, not raw API errors
+- [x] **Loading skeletons** consistent across all tabs
+- [x] **Polish error states** — friendly messages, not raw API errors
 
 ### Day 3 — 28 May (Thu) — Demo Video (2 min hard cap)
 
@@ -219,11 +219,7 @@ When asked "what makes this different":
 
 ### 28 May 2026
 
-- Day 2 shipped: dismiss button (DELETE endpoint + trash icon + optimistic remove), AI cost display (contextvar token tracking → stored in analysis.summary), improved empty states on debt/deps tabs
-
-### 28 May 2026
-
-_(pending)_
+- Day 2 shipped: dismiss button, AI cost display, empty states, loading skeletons, polished error states (failed analysis page, friendly rate-limit/auth copy)
 
 ### 29 May 2026
 

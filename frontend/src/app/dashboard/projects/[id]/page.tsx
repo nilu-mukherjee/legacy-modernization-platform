@@ -357,8 +357,99 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-3 w-16 rounded bg-muted" />
+            <div className="h-7 w-48 rounded bg-muted" />
+            <div className="h-3 w-32 rounded bg-muted" />
+          </div>
+          <div className="h-9 w-28 rounded-xl bg-muted" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="glass rounded-xl p-8 flex flex-col items-center justify-center">
+            <div className="h-3 w-32 rounded bg-muted mb-6" />
+            <div className="h-[200px] w-[200px] rounded-full bg-muted" />
+          </div>
+          <div className="glass rounded-xl p-6 space-y-4">
+            <div className="h-3 w-24 rounded bg-muted" />
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-3 w-20 rounded bg-muted" />
+                <div className="h-2 flex-1 rounded-full bg-muted" style={{ opacity: 1 - i * 0.1 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-1 border-b border-border pb-px">
+          {["Overview", "Tech Debt", "Dependencies", "AI Insights"].map((t) => (
+            <div key={t} className="h-9 w-24 rounded bg-muted mx-1" />
+          ))}
+        </div>
+        <div className="glass rounded-xl p-6 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-12 rounded-lg bg-muted" style={{ opacity: 1 - i * 0.15 }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center gap-4">
+        <FileCode2 className="h-12 w-12 text-muted-foreground/40" />
+        <div>
+          <p className="font-semibold text-lg">Project not found</p>
+          <p className="text-sm text-muted-foreground mt-1">This project may have been deleted or you don&apos;t have access.</p>
+        </div>
+        <Link
+          href="/dashboard/projects"
+          className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Projects
+        </Link>
+      </div>
+    );
+  }
+
+  if (project.status === "failed" && !reanalyzing) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link
+            href="/dashboard/projects"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Projects
+          </Link>
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <FileCode2 className="h-6 w-6 text-primary" />
+            {project.name || "Project"}
+          </h1>
+        </div>
+        <div className="glass rounded-xl p-10 flex flex-col items-center text-center gap-4">
+          <AlertTriangle className="h-12 w-12 text-destructive/60" />
+          <div>
+            <p className="font-semibold text-lg">Analysis failed</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Something went wrong while analyzing this repository. This can happen with private repos, very large codebases, or temporary service issues.
+            </p>
+          </div>
+          {reanalyzeError && (
+            <p className="text-xs text-destructive font-mono bg-destructive/5 rounded px-3 py-2 max-w-sm">{reanalyzeError}</p>
+          )}
+          <button
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
+            className="inline-flex items-center gap-2 rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl disabled:opacity-50"
+          >
+            {reanalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {reanalyzing ? "Starting…" : "Try again"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -445,8 +536,18 @@ export default function ProjectDetailPage() {
 
       {/* Error banner */}
       {reanalyzeError && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {reanalyzeError}
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-destructive">
+              {reanalyzeError.includes("429") || reanalyzeError.toLowerCase().includes("rate")
+                ? "Daily analysis limit reached"
+                : reanalyzeError.includes("401") || reanalyzeError.toLowerCase().includes("unauthorized")
+                  ? "Session expired — please sign in again"
+                  : "Re-analyze failed"}
+            </p>
+            <p className="text-xs text-destructive/70 mt-0.5">{reanalyzeError}</p>
+          </div>
         </div>
       )}
 

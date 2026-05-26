@@ -117,31 +117,44 @@ export async function downloadReport(projectId: string): Promise<void> {
     const grade = anal.grade ?? "—";
     const [r, g, b] = scoreColor(score);
 
-    const badgeH = 42;
+    const badgeW = 170;
+    const badgeH = 68;
     doc.setFillColor(r, g, b);
-    doc.roundedRect(ML, y, 130, badgeH, 5, 5, "F");
+    doc.roundedRect(ML, y, badgeW, badgeH, 6, 6, "F");
 
-    // Score number inside badge
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(26);
+    // Tiny "SCORE" caption inside badge, top-left
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.text(`${score}%`, ML + 14, y + 28);
+    doc.text("SCORE", ML + 14, y + 16);
 
-    // Grade text inside badge
-    doc.setFontSize(14);
-    doc.text(`Grade ${grade}`, ML + 58, y + 28);
+    // Row 1: score number — large, left-aligned, no overflow
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${score}%`, ML + 14, y + 44);
+
+    // Row 2: grade on its own line, well below score baseline
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(230, 240, 255);
+    doc.text(`Grade ${grade}`, ML + 14, y + 60);
 
     // Labels right-aligned outside badge
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
-    doc.text("MODERNIZATION SCORE", MR, y + 16, { align: "right" });
+    doc.text("MODERNIZATION SCORE", MR, y + 20, { align: "right" });
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
+    doc.setFontSize(14);
     doc.setTextColor(r, g, b);
-    doc.text(`${score} / 100`, MR, y + 33, { align: "right" });
+    doc.text(`${score} / 100`, MR, y + 42, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...GRAY);
+    doc.text(`Grade ${grade}`, MR, y + 58, { align: "right" });
 
-    y += 56;
+    y += badgeH + 14;
   } else {
     y += 10;
   }
@@ -178,14 +191,15 @@ export async function downloadReport(projectId: string): Promise<void> {
   const execSummary: string = anal?.summary?.executive_summary ?? "";
   if (execSummary) {
     checkY(40);
-    const lines = doc.splitTextToSize(execSummary, CW - 20);
-    const boxH = lines.length * 13 + 18;
+    // Set font BEFORE splitTextToSize so metrics match the render size
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(execSummary, CW - 24);
+    const boxH = lines.length * 13 + 20;
     doc.setFillColor(240, 245, 255);
     doc.roundedRect(ML, y, CW, boxH, 3, 3, "F");
     doc.setFillColor(...ACCENT);
     doc.rect(ML, y, 3, boxH, "F");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
     doc.setTextColor(...BLACK);
     lines.forEach((line: string, i: number) => doc.text(line, ML + 12, y + 14 + i * 13));
     y += boxH + 14;
@@ -203,17 +217,17 @@ export async function downloadReport(projectId: string): Promise<void> {
     y += 12;
   };
 
-  // Score breakdown
+  // Score breakdown — always render
   const subScores: Record<string, number> = anal?.sub_scores ?? {};
-  if (Object.keys(subScores).length > 0) {
-    sectionTitle("Score Breakdown");
+  sectionTitle("Score Breakdown");
+  const subEntries = Object.entries(subScores);
+  if (subEntries.length > 0) {
     const cols = 2;
     const colW = CW / cols;
-    const entries = Object.entries(subScores);
-    for (let i = 0; i < entries.length; i += cols) {
+    for (let i = 0; i < subEntries.length; i += cols) {
       checkY(22);
       for (let c = 0; c < cols; c++) {
-        const entry = entries[i + c];
+        const entry = subEntries[i + c];
         if (!entry) continue;
         const [key, val] = entry;
         const v = Number(val) || 0;
@@ -238,14 +252,123 @@ export async function downloadReport(projectId: string): Promise<void> {
       }
       y += 26;
     }
-    y += 6;
+  } else {
+    checkY(18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    doc.text("Score breakdown not available for this analysis.", ML, y + 10);
+    y += 18;
   }
+  y += 6;
 
-  // Technical debt
+  // Technical debt — always render
   const debtItems: any[] = debtRes?.debt_items ?? [];
+  sectionTitle(`Technical Debt — ${debtRes?.total ?? debtItems.length} Issues`);
+
   if (debtItems.length > 0) {
-    sectionTitle(`Technical Debt — ${debtRes?.total ?? debtItems.length} Issues`);
-    const colW = [68, 80, 180, 137];
+    // ---- Category × Severity matrix ----
+    const CATEGORIES: Array<{ key: string; label: string }> = [
+      { key: "bug_risk",       label: "Bug Risk" },
+      { key: "security",       label: "Security" },
+      { key: "best_practices", label: "Best Practice" },
+      { key: "code_style",     label: "Code Style" },
+      { key: "documentation",  label: "Documentation" },
+    ];
+    const SEV_ROWS: Array<{ key: string; label: string }> = [
+      { key: "critical", label: "Critical" },
+      { key: "high",     label: "High" },
+      { key: "medium",   label: "Medium" },
+      { key: "low",      label: "Low" },
+    ];
+
+    const matrix: Record<string, Record<string, number>> = {};
+    for (const s of SEV_ROWS) {
+      matrix[s.key] = {};
+      for (const c of CATEGORIES) matrix[s.key][c.key] = 0;
+    }
+    for (const it of debtItems) {
+      const sev = String(it.severity ?? "").toLowerCase();
+      const cat = String(it.category ?? "").toLowerCase();
+      if (matrix[sev] && matrix[sev][cat] !== undefined) {
+        matrix[sev][cat] += 1;
+      }
+    }
+
+    const sevColW = 70;
+    const catColW = (CW - sevColW) / CATEGORIES.length;
+    const matrixHeaderH = 24;
+    const matrixRowH    = 22;
+
+    checkY(matrixHeaderH + SEV_ROWS.length * matrixRowH + 10);
+
+    // Header row
+    doc.setFillColor(...LGRAY);
+    doc.rect(ML, y, CW, matrixHeaderH, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...GRAY);
+    doc.text("SEVERITY", ML + 6, y + 15);
+    CATEGORIES.forEach((c, i) => {
+      const cx = ML + sevColW + i * catColW + catColW / 2;
+      doc.text(c.label.toUpperCase(), cx, y + 15, { align: "center" });
+    });
+    y += matrixHeaderH;
+
+    // Severity rows
+    SEV_ROWS.forEach((s, rowIdx) => {
+      const [sr, sg, sb] = SEVERITY_RGB[s.key] ?? GRAY;
+      if (rowIdx % 2 === 1) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(ML, y, CW, matrixRowH, "F");
+      }
+      // Severity pill in column 1
+      doc.setFillColor(sr, sg, sb);
+      doc.roundedRect(ML + 6, y + 4, 56, matrixRowH - 8, 2, 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text(s.label.toUpperCase(), ML + 6 + 28, y + matrixRowH / 2 + 2.5, { align: "center" });
+
+      // Count cells
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      CATEGORIES.forEach((c, i) => {
+        const count = matrix[s.key][c.key];
+        const cx = ML + sevColW + i * catColW + catColW / 2;
+        if (count > 0) {
+          doc.setTextColor(sr, sg, sb);
+        } else {
+          doc.setTextColor(...LGRAY);
+        }
+        doc.text(String(count), cx, y + matrixRowH / 2 + 4, { align: "center" });
+      });
+
+      // Row border
+      doc.setDrawColor(...LGRAY);
+      doc.line(ML, y + matrixRowH, MR, y + matrixRowH);
+
+      y += matrixRowH;
+    });
+
+    // Outer matrix border
+    doc.setDrawColor(...LGRAY);
+    doc.rect(ML, y - SEV_ROWS.length * matrixRowH - matrixHeaderH, CW, SEV_ROWS.length * matrixRowH + matrixHeaderH, "S");
+
+    y += 14;
+
+    // ---- Detailed list (top items per severity) ----
+    checkY(28);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    doc.text("TOP ISSUES BY SEVERITY", ML, y);
+    y += 5;
+    doc.setDrawColor(...LGRAY);
+    doc.line(ML, y, MR, y);
+    y += 12;
+
+    const colW = [68, 90, 180, 127];
     const headers = ["Severity", "Category", "Issue", "File"];
     const rowH = 22;
 
@@ -259,8 +382,11 @@ export async function downloadReport(projectId: string): Promise<void> {
     headers.forEach((h, i) => { doc.text(h, cx, y + 13); cx += colW[i]; });
     y += rowH;
 
+    const catLabelMap: Record<string, string> = {};
+    CATEGORIES.forEach((c) => { catLabelMap[c.key] = c.label; });
+
     for (const sev of ["critical", "high", "medium", "low"]) {
-      const items = debtItems.filter((d) => d.severity === sev).slice(0, 10);
+      const items = debtItems.filter((d) => d.severity === sev).slice(0, 8);
       for (const item of items) {
         checkY(rowH);
         const [r, g, b] = SEVERITY_RGB[sev] ?? GRAY;
@@ -273,18 +399,26 @@ export async function downloadReport(projectId: string): Promise<void> {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(...GRAY);
-        doc.text(trunc(item.category ?? "", 11), ML + colW[0] + 4, y + 13);
+        const catLabel = catLabelMap[String(item.category ?? "").toLowerCase()] ?? (item.category ?? "");
+        doc.text(trunc(catLabel, 14), ML + colW[0] + 4, y + 13);
         doc.setTextColor(...BLACK);
         doc.text(trunc(item.title ?? "", 34), ML + colW[0] + colW[1] + 4, y + 13);
         doc.setTextColor(...GRAY);
         const fp = (item.file_path ?? "").split("/").slice(-2).join("/") + (item.line_start ? `:${item.line_start}` : "");
-        doc.text(trunc(fp, 28), ML + colW[0] + colW[1] + colW[2] + 4, y + 13);
+        doc.text(trunc(fp, 26), ML + colW[0] + colW[1] + colW[2] + 4, y + 13);
         doc.setDrawColor(...LGRAY);
         doc.line(ML, y + rowH - 2, MR, y + rowH - 2);
         y += rowH;
       }
     }
     y += 8;
+  } else {
+    checkY(18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    doc.text("No technical debt issues detected in this repository.", ML, y + 10);
+    y += 22;
   }
 
   // Vulnerable dependencies
@@ -378,12 +512,19 @@ export async function downloadReport(projectId: string): Promise<void> {
   if (recs.length > 0) {
     sectionTitle(`AI Recommendations — ${recsRes?.total ?? recs.length} Total`);
     for (const rec of recs.slice(0, 8)) {
-      checkY(56);
       const [r, g, b] = SEVERITY_RGB[rec.priority] ?? GRAY;
+      // Compute desc lines at render font size BEFORE drawing the background
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const descLines = doc.splitTextToSize(rec.description ?? "", CW - 20);
+      const shownLines = descLines.slice(0, 3);
+      const hasMeta = !!(rec.category || rec.estimated_hours);
+      const cardH = 26 + shownLines.length * 12 + (hasMeta ? 14 : 6);
+      checkY(cardH + 4);
       doc.setFillColor(249, 250, 251);
-      doc.roundedRect(ML, y, CW, 50, 3, 3, "F");
+      doc.roundedRect(ML, y, CW, cardH, 3, 3, "F");
       doc.setFillColor(r, g, b);
-      doc.roundedRect(ML + 6, y + 7, 50, 13, 2, 2, "F");
+      doc.roundedRect(ML + 6, y + 7, 52, 13, 2, 2, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
@@ -391,18 +532,17 @@ export async function downloadReport(projectId: string): Promise<void> {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(...BLACK);
-      doc.text(trunc(rec.title ?? "", 60), ML + 62, y + 16);
+      doc.text(trunc(rec.title ?? "", 65), ML + 64, y + 16);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(...GRAY);
-      const descLines = doc.splitTextToSize(rec.description ?? "", CW - 20);
-      descLines.slice(0, 2).forEach((line: string, i: number) => doc.text(line, ML + 6, y + 30 + i * 12));
-      if (rec.category || rec.estimated_hours) {
+      shownLines.forEach((line: string, i: number) => doc.text(line, ML + 6, y + 28 + i * 12));
+      if (hasMeta) {
         doc.setFontSize(8);
         const meta = [rec.category, rec.estimated_hours ? `~${rec.estimated_hours}h` : null].filter(Boolean).join(" · ");
-        doc.text(meta, ML + 6, y + 46);
+        doc.text(meta, ML + 6, y + 28 + shownLines.length * 12 + 4);
       }
-      y += 56;
+      y += cardH + 6;
     }
   }
 
@@ -420,5 +560,7 @@ export async function downloadReport(projectId: string): Promise<void> {
   }
 
   const safeName = (proj?.name ?? "report").replace(/[^a-z0-9]/gi, "_").toLowerCase();
-  doc.save(`codelens_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const now = new Date();
+  const datestr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  doc.save(`codelens_${safeName}_${datestr}.pdf`);
 }
