@@ -383,7 +383,7 @@ export async function downloadReport(projectId: string): Promise<void> {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
-    doc.text("TOP ISSUES BY SEVERITY", ML, y);
+    doc.text(`ALL ISSUES BY SEVERITY — ${debtItems.length} SHOWN`, ML, y);
     y += 5;
     doc.setDrawColor(...LGRAY);
     doc.line(ML, y, MR, y);
@@ -406,31 +406,51 @@ export async function downloadReport(projectId: string): Promise<void> {
     const catLabelMap: Record<string, string> = {};
     CATEGORIES.forEach((c) => { catLabelMap[c.key] = c.label; });
 
-    for (const sev of ["critical", "high", "medium", "low"]) {
-      const items = debtItems.filter((d) => d.severity === sev).slice(0, 8);
-      for (const item of items) {
-        checkY(rowH);
-        const [r, g, b] = SEVERITY_RGB[sev] ?? GRAY;
-        doc.setFillColor(r, g, b);
-        doc.roundedRect(ML + 2, y + 4, 58, 13, 2, 2, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(sev.toUpperCase(), ML + 6, y + 13);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(...GRAY);
-        const catLabel = catLabelMap[String(item.category ?? "").toLowerCase()] ?? (item.category ?? "");
-        doc.text(trunc(catLabel, 14), ML + colW[0] + 4, y + 13);
-        doc.setTextColor(...BLACK);
-        doc.text(trunc(item.title ?? "", 34), ML + colW[0] + colW[1] + 4, y + 13);
-        doc.setTextColor(...GRAY);
-        const fp = (item.file_path ?? "").split("/").slice(-2).join("/") + (item.line_start ? `:${item.line_start}` : "");
-        doc.text(trunc(fp, 26), ML + colW[0] + colW[1] + colW[2] + 4, y + 13);
-        doc.setDrawColor(...LGRAY);
-        doc.line(ML, y + rowH - 2, MR, y + rowH - 2);
-        y += rowH;
+    const drawDetailHeader = () => {
+      doc.setFillColor(...LGRAY);
+      doc.rect(ML, y, CW, rowH - 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...GRAY);
+      let hx = ML + 4;
+      headers.forEach((h, i) => { doc.text(h, hx, y + 13); hx += colW[i]; });
+      y += rowH;
+    };
+
+    const SEV_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    const sortedItems = [...debtItems].sort((a, b) => {
+      const sa = SEV_ORDER[String(a.severity ?? "").toLowerCase()] ?? 99;
+      const sb = SEV_ORDER[String(b.severity ?? "").toLowerCase()] ?? 99;
+      return sa - sb;
+    });
+
+    for (const item of sortedItems) {
+      // Page break: redraw header at top of new page
+      if (y + rowH > H - 40) {
+        newPage();
+        drawDetailHeader();
       }
+      const sev = String(item.severity ?? "").toLowerCase();
+      const [r, g, b] = SEVERITY_RGB[sev] ?? GRAY;
+      doc.setFillColor(r, g, b);
+      doc.roundedRect(ML + 2, y + 4, 58, 13, 2, 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(sev.toUpperCase(), ML + 6, y + 13);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...GRAY);
+      const catLabel = catLabelMap[String(item.category ?? "").toLowerCase()] ?? (item.category ?? "");
+      doc.text(trunc(catLabel, 14), ML + colW[0] + 4, y + 13);
+      doc.setTextColor(...BLACK);
+      doc.text(trunc(item.title ?? "", 34), ML + colW[0] + colW[1] + 4, y + 13);
+      doc.setTextColor(...GRAY);
+      const fp = (item.file_path ?? "").split("/").slice(-2).join("/") + (item.line_start ? `:${item.line_start}` : "");
+      doc.text(trunc(fp, 26), ML + colW[0] + colW[1] + colW[2] + 4, y + 13);
+      doc.setDrawColor(...LGRAY);
+      doc.line(ML, y + rowH - 2, MR, y + rowH - 2);
+      y += rowH;
     }
     y += 8;
   } else {
