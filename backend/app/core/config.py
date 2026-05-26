@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     CLONE_TIMEOUT_SECONDS: int = 120
     ANALYSIS_TIMEOUT_SECONDS: int = 600
 
+    # ── Per-User Rate Limits ─────────────────────────────────────────────
+    MAX_ANALYSES_PER_USER_PER_DAY: int = 10
+
     # ── CORS ─────────────────────────────────────────────────────────────
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
 

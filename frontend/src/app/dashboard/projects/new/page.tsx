@@ -3,8 +3,29 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { GitBranch, ArrowLeft, Loader2, Search, Star, Lock, ChevronDown, X } from "lucide-react";
+import { GitBranch, ArrowLeft, Loader2, Search, Star, Lock, ChevronDown, X, Sparkles } from "lucide-react";
 import Link from "next/link";
+
+const SAMPLE_REPOS: { url: string; label: string; description: string; language: string }[] = [
+  {
+    url: "https://github.com/sindresorhus/normalize-url",
+    label: "normalize-url",
+    description: "Tiny JS utility — quick analysis (~30s)",
+    language: "TypeScript",
+  },
+  {
+    url: "https://github.com/pallets/flask",
+    label: "pallets/flask",
+    description: "Popular Python web framework — rich findings",
+    language: "Python",
+  },
+  {
+    url: "https://github.com/expressjs/express",
+    label: "expressjs/express",
+    description: "Node.js framework — multi-language analysis",
+    language: "JavaScript",
+  },
+];
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -97,6 +118,10 @@ export default function NewProjectPage() {
     e.preventDefault();
     const repoUrl = selected?.html_url || manualUrl.trim();
     if (!repoUrl) return;
+    await startAnalysis(repoUrl, name || undefined);
+  }
+
+  async function startAnalysis(repoUrl: string, projectName?: string) {
     setError("");
     setLoading(true);
     try {
@@ -106,7 +131,7 @@ export default function NewProjectPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${backendToken}`,
         },
-        body: JSON.stringify({ repo_url: repoUrl, name: name || undefined }),
+        body: JSON.stringify({ repo_url: repoUrl, name: projectName }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -119,6 +144,11 @@ export default function NewProjectPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSampleClick(repoUrl: string, label: string) {
+    if (loading) return;
+    await startAnalysis(repoUrl, label);
   }
 
   return (
@@ -135,6 +165,34 @@ export default function NewProjectPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Pick a GitHub repository to start the modernization analysis.
         </p>
+      </div>
+
+      {/* Sample repos — quick start for evaluators / first-time users */}
+      <div className="glass rounded-xl p-5 border border-primary/20">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Try with a sample repo</h3>
+          <span className="text-xs text-muted-foreground">— no setup needed</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {SAMPLE_REPOS.map((s) => (
+            <button
+              key={s.url}
+              type="button"
+              onClick={() => handleSampleClick(s.url, s.label)}
+              disabled={loading}
+              style={{ cursor: loading ? "default" : "pointer" }}
+              className="text-left rounded-lg border border-border bg-background/50 px-3 py-2.5 hover:border-primary hover:bg-primary/5 transition-all disabled:opacity-50"
+            >
+              <div className="flex items-center gap-1.5">
+                <GitBranch className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-sm font-medium truncate">{s.label}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{s.description}</p>
+              <span className="mt-1 inline-block text-[10px] text-muted-foreground/70">{s.language}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="glass rounded-xl p-6 space-y-5 glow-border">

@@ -23,7 +23,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import check_rate_limit, peek_rate_limit
 from app.core.redis import get_arq_pool
 from app.core.security import get_current_user
 from app.models.analysis import Analysis, DebtItem, DependencyFinding
@@ -152,6 +154,22 @@ async def create_project(
             detail="Invalid GitHub repository URL",
         )
 
+    allowed, remaining, reset_in = await check_rate_limit(
+        user_id=current_user.id,
+        key="analysis",
+        max_count=settings.MAX_ANALYSES_PER_USER_PER_DAY,
+        window_seconds=86400,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Daily analysis limit reached ({settings.MAX_ANALYSES_PER_USER_PER_DAY}/day). "
+                f"Resets in {reset_in // 3600}h {(reset_in % 3600) // 60}m."
+            ),
+            headers={"Retry-After": str(reset_in)},
+        )
+
     repo_full_name = _extract_repo_name(payload.repo_url)
     name = payload.name or repo_full_name.split("/")[-1]
 
@@ -247,6 +265,24 @@ async def delete_project(
     await db.commit()
 
 
+@router.get("/quota/analyses")
+async def get_analysis_quota(
+    current_user: User = Depends(get_current_user),
+):
+    """Return the user's remaining daily analysis quota and reset window."""
+    remaining, reset_in = await peek_rate_limit(
+        user_id=current_user.id,
+        key="analysis",
+        max_count=settings.MAX_ANALYSES_PER_USER_PER_DAY,
+        window_seconds=86400,
+    )
+    return {
+        "limit": settings.MAX_ANALYSES_PER_USER_PER_DAY,
+        "remaining": remaining,
+        "reset_in_seconds": reset_in,
+    }
+
+
 @router.post("/{project_id}/analyze", status_code=202)
 async def re_analyze(
     project_id: uuid.UUID,
@@ -264,6 +300,22 @@ async def re_analyze(
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    allowed, remaining, reset_in = await check_rate_limit(
+        user_id=current_user.id,
+        key="analysis",
+        max_count=settings.MAX_ANALYSES_PER_USER_PER_DAY,
+        window_seconds=86400,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Daily analysis limit reached ({settings.MAX_ANALYSES_PER_USER_PER_DAY}/day). "
+                f"Resets in {reset_in // 3600}h {(reset_in % 3600) // 60}m."
+            ),
+            headers={"Retry-After": str(reset_in)},
+        )
 
     project.status = "analyzing"
 

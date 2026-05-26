@@ -68,17 +68,20 @@
 
 ## 5-Day Plan to Win 1st Prize
 
-### Day 1 — 26 May (Tue) — Stability + Sample Data 🚧
+### Day 1 — 26 May (Tue) — Stability + Sample Data ✅
 
-- [ ] Add **"Try with sample repo"** button on dashboard
-  - [ ] Seeds analysis from cached demo data (no 3-min wait for judges)
-  - [ ] Badge on UI: "Sample analysis"
-- [ ] Add **graceful AI retry** with exponential backoff in `ai_pipeline.py`
-  - [ ] 3 tries, then degrade to placeholder
-  - [ ] Handle Anthropic 529 (overloaded) explicitly
-- [ ] Add per-user **rate limit** (5 analyses/day)
-  - [ ] Track via Redis counter
-  - [ ] Show remaining quota in UI
+- [x] Add **"Try with sample repo"** buttons on New Project page
+  - [x] 3 curated sample repos (normalize-url / pallets/flask / expressjs/express)
+  - [x] One-click triggers analysis with no manual URL entry
+- [x] Add **graceful AI retry** with exponential backoff in `ai_pipeline.py`
+  - [x] 3 tries with 1s/2s/4s backoff + jitter
+  - [x] Catches 408/429/500/502/503/504/529, timeouts, connection errors
+  - [x] Applies to both Anthropic + OpenAI providers
+- [x] Add per-user **rate limit** (10 analyses/day, configurable)
+  - [x] Redis fixed-window counter (`ratelimit:{user}:analysis:{YYYYMMDD}`)
+  - [x] `MAX_ANALYSES_PER_USER_PER_DAY` env var (default 10)
+  - [x] 429 response with `Retry-After` header on exceed
+  - [x] `GET /api/v1/projects/quota/analyses` endpoint for UI to peek
 
 ### Day 2 — 27 May (Wed) — UX Polish for Demo
 
@@ -211,7 +214,8 @@ When asked "what makes this different":
 
 ### 27 May 2026
 
-_(pending)_
+- Day 1 shipped: AI retry, rate limit, sample repos
+- Next: dismiss button + cost display + empty-state CTAs
 
 ### 28 May 2026
 

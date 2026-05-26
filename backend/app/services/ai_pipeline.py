@@ -22,11 +22,67 @@ during bulk file analysis.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import random
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Awaitable, Callable, TypeVar
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+async def _retry_with_backoff(
+    coro_fn: Callable[[], Awaitable[_T]],
+    *,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    label: str = "ai_call",
+) -> _T:
+    """Retry an async call with exponential backoff on transient API errors.
+
+    Catches Anthropic / OpenAI overload (529), service-unavailable (503),
+    timeouts, connection errors, and rate-limit errors.  Re-raises everything
+    else immediately.
+    """
+    attempt = 0
+    while True:
+        try:
+            return await coro_fn()
+        except Exception as exc:  # noqa: BLE001
+            transient = _is_transient_error(exc)
+            attempt += 1
+            if not transient or attempt > max_retries:
+                logger.warning("%s failed (attempt %d): %s", label, attempt, exc)
+                raise
+            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+            logger.info(
+                "%s transient error on attempt %d (%s); retrying in %.1fs",
+                label, attempt, type(exc).__name__, delay,
+            )
+            await asyncio.sleep(delay)
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """Best-effort detection of retryable LLM API errors."""
+    name = type(exc).__name__
+    if name in {
+        "APIConnectionError", "APIStatusError", "APITimeoutError",
+        "RateLimitError", "InternalServerError",
+    }:
+        return True
+    status_code = getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None
+    )
+    if isinstance(status_code, int) and status_code in {408, 429, 500, 502, 503, 504, 529}:
+        return True
+    if isinstance(exc, (asyncio.TimeoutError, ConnectionError)):
+        return True
+    return False
 
 # ── Prompt Templates ─────────────────────────────────────────────────────────
 # Each prompt is split into a SYSTEM part (static, cacheable) and a USER part
@@ -181,8 +237,6 @@ class AnthropicProvider(AIProvider):
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
-            # Mark the system block as cacheable so repeated calls within 5 min
-            # hit the prompt cache instead of reprocessing the full token count.
             kwargs["system"] = [
                 {
                     "type": "text",
@@ -190,7 +244,10 @@ class AnthropicProvider(AIProvider):
                     "cache_control": {"type": "ephemeral"},
                 }
             ]
-        response = await self._client.messages.create(**kwargs)
+        response = await _retry_with_backoff(
+            lambda: self._client.messages.create(**kwargs),
+            label="anthropic.messages.create",
+        )
         return response.content[0].text
 
     async def complete_json(
@@ -231,10 +288,13 @@ class OpenAIProvider(AIProvider):
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        response = await self._client.chat.completions.create(
-            model=model or settings.AI_MODEL_POWERFUL,
-            messages=messages,
-            max_tokens=4096,
+        response = await _retry_with_backoff(
+            lambda: self._client.chat.completions.create(
+                model=model or settings.AI_MODEL_POWERFUL,
+                messages=messages,
+                max_tokens=4096,
+            ),
+            label="openai.chat.completions.create",
         )
         return response.choices[0].message.content or ""
 
