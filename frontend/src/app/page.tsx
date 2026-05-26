@@ -73,7 +73,7 @@ const FEATURES = [
 const SCORE_DIMS = [
   { label: "Code Health",     score: 72,  color: "#22c55e" },
   { label: "Architecture",    score: 100, color: "#22c55e" },
-  { label: "Dependencies",    score: 60,  color: "#eab308" },
+  { label: "Dependencies",    score: 28,  color: "#ef4444" },
   { label: "Test Coverage",   score: 31,  color: "#f97316" },
   { label: "Documentation",   score: 70,  color: "#22c55e" },
   { label: "Security",        score: 0,   color: "#ef4444" },
@@ -213,10 +213,10 @@ export default async function LandingPage() {
                 <div className="rounded-xl border border-border bg-background/50 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-xs text-muted-foreground uppercase tracking-wider">Modernization Score</span>
-                    <span className="rounded-md bg-warning/15 px-2 py-0.5 text-xs font-bold text-warning">Grade B</span>
+                    <span className="rounded-md bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-400">Grade C</span>
                   </div>
                   <div className="mb-4 flex items-end gap-2">
-                    <span className="text-4xl font-extrabold text-warning">67</span>
+                    <span className="text-4xl font-extrabold text-orange-400">45</span>
                     <span className="mb-1 text-lg text-muted-foreground">/100</span>
                   </div>
                   <div className="space-y-2">
