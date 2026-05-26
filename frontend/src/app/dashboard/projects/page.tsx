@@ -163,8 +163,8 @@ export default function ProjectsPage() {
                     </p>
                   )}
 
-                  {/* Row 1: status · files · LOC */}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-2.5">
+                  {/* Row 1: status · files · LOC · date/time right */}
+                  <div className="flex w-full items-center gap-3 text-xs text-muted-foreground mb-2.5">
                     <span className={`flex items-center gap-1 font-medium ${color}`}>
                       <Icon className={`h-3.5 w-3.5${spin ? " animate-spin" : ""}`} />
                       {label}
@@ -184,45 +184,42 @@ export default function ProjectsPage() {
                         )}
                       </>
                     )}
-                  </div>
-
-                  {/* Row 2: language tags left · date/time right */}
-                  <div className="flex w-full items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                      {isAnalyzing ? (
-                        <>
-                          <span className="h-3 w-20 rounded bg-muted animate-pulse" />
-                          <span className="h-3 w-16 rounded bg-muted animate-pulse" />
-                        </>
-                      ) : (
-                        project.detected_languages &&
-                        Object.keys(project.detected_languages).length > 0 &&
-                        (() => {
-                          const entries = Object.entries(
-                            project.detected_languages as Record<string, number>
-                          ).sort(([, a], [, b]) => b - a);
-                          const total = entries.reduce((s, [, n]) => s + n, 0);
-                          return entries.slice(0, 3).map(([lang, count]) => {
-                            const pct = total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
-                            return (
-                              <div key={lang} className="flex items-center gap-1 text-xs">
-                                <span
-                                  className="h-2 w-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: getLangColor(lang) }}
-                                />
-                                <span className="font-medium capitalize text-foreground/80">{lang}</span>
-                                <span className="text-muted-foreground">{pct}%</span>
-                              </div>
-                            );
-                          });
-                        })()
-                      )}
-                    </div>
-
                     {project.created_at && (
-                      <span className="shrink-0 inline-flex items-center rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20 whitespace-nowrap">
+                      <span className="ml-auto shrink-0 inline-flex items-center rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20 whitespace-nowrap">
                         {formatDateTime(project.created_at)}
                       </span>
+                    )}
+                  </div>
+
+                  {/* Row 2: language tags */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {isAnalyzing ? (
+                      <>
+                        <span className="h-3 w-20 rounded bg-muted animate-pulse" />
+                        <span className="h-3 w-16 rounded bg-muted animate-pulse" />
+                      </>
+                    ) : (
+                      project.detected_languages &&
+                      Object.keys(project.detected_languages).length > 0 &&
+                      (() => {
+                        const entries = Object.entries(
+                          project.detected_languages as Record<string, number>
+                        ).sort(([, a], [, b]) => b - a);
+                        const total = entries.reduce((s, [, n]) => s + n, 0);
+                        return entries.slice(0, 3).map(([lang, count]) => {
+                          const pct = total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
+                          return (
+                            <div key={lang} className="flex items-center gap-1 text-xs">
+                              <span
+                                className="h-2 w-2 rounded-full shrink-0"
+                                style={{ backgroundColor: getLangColor(lang) }}
+                              />
+                              <span className="font-medium capitalize text-foreground/80">{lang}</span>
+                              <span className="text-muted-foreground">{pct}%</span>
+                            </div>
+                          );
+                        });
+                      })()
                     )}
                   </div>
                 </Link>
