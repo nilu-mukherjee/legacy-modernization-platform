@@ -42,6 +42,62 @@ function trunc(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
+/**
+ * Break a string into lines that fit within `maxWidth`, inserting a "-"
+ * at hard-break points so multi-line paths read naturally.
+ * Prefers breaking at "/" boundaries; falls back to char-level with hyphen.
+ */
+function wrapWithHyphen(
+  text: string,
+  maxWidth: number,
+  measure: (s: string) => number,
+): string[] {
+  if (!text) return [""];
+  if (measure(text) <= maxWidth) return [text];
+
+  const lines: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (measure(remaining) <= maxWidth) {
+      lines.push(remaining);
+      break;
+    }
+    // Find longest prefix that fits via binary search
+    let lo = 1, hi = remaining.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (measure(remaining.slice(0, mid)) <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    let cut = lo;
+    if (cut <= 0) cut = 1;
+
+    // Prefer break after "/" within the fitting prefix
+    const slashIdx = remaining.slice(0, cut).lastIndexOf("/");
+    if (slashIdx > 0 && slashIdx < cut - 1) {
+      const upTo = slashIdx + 1; // keep "/" on this line
+      lines.push(remaining.slice(0, upTo));
+      remaining = remaining.slice(upTo);
+      continue;
+    }
+
+    // Char break with trailing hyphen — reserve width for "-"
+    let finalCut = cut;
+    while (finalCut > 1 && measure(remaining.slice(0, finalCut) + "-") > maxWidth) {
+      finalCut--;
+    }
+    if (finalCut < remaining.length) {
+      lines.push(remaining.slice(0, finalCut) + "-");
+      remaining = remaining.slice(finalCut);
+    } else {
+      lines.push(remaining);
+      break;
+    }
+  }
+  return lines;
+}
+
 const IBM_PLEX_REGULAR_URL = "/fonts/IBMPlexSans-Regular.ttf";
 const IBM_PLEX_BOLD_URL    = "/fonts/IBMPlexSans-Bold.ttf";
 
@@ -489,32 +545,53 @@ export async function downloadReport(projectId: string): Promise<void> {
     });
 
     for (const item of sortedItems) {
-      // Page break: redraw header at top of new page
-      if (y + rowH > H - 40) {
+      const sev = String(item.severity ?? "").toLowerCase();
+      const [r, g, b] = SEVERITY_RGB[sev] ?? GRAY;
+
+      // Compute file path lines (full path, hyphen-wrapped to column width)
+      const fp = (item.file_path ?? "") + (item.line_start ? `:${item.line_start}` : "");
+      const fileColW = colW[3] - 10;
+      doc.setFont(FONT, "normal");
+      doc.setFontSize(10);
+      const fileLines = wrapWithHyphen(fp, fileColW, (s) => doc.getTextWidth(s));
+      const lineH = 12;
+      const dynRowH = Math.max(rowH, 8 + fileLines.length * lineH + 6);
+
+      if (y + dynRowH > H - 40) {
         newPage();
         drawDetailHeader();
       }
-      const sev = String(item.severity ?? "").toLowerCase();
-      const [r, g, b] = SEVERITY_RGB[sev] ?? GRAY;
+
+      // Severity badge
       doc.setFillColor(r, g, b);
       doc.roundedRect(ML + 4, y + 5, 62, 14, 2, 2, "F");
       doc.setFont(FONT, "bold");
       doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
       doc.text(sev.toUpperCase(), ML + 8, y + 15);
+
+      // Category
       doc.setFont(FONT, "normal");
       doc.setFontSize(10);
       doc.setTextColor(...GRAY);
       const catLabel = catLabelMap[String(item.category ?? "").toLowerCase()] ?? (item.category ?? "");
       doc.text(trunc(catLabel, 14), ML + colW[0] + 6, y + 15);
+
+      // Title
       doc.setTextColor(...BLACK);
       doc.text(trunc(item.title ?? "", 36), ML + colW[0] + colW[1] + 6, y + 15);
+
+      // File path — multi-line, hyphen-broken
       doc.setTextColor(...GRAY);
-      const fp = (item.file_path ?? "").split("/").slice(-2).join("/") + (item.line_start ? `:${item.line_start}` : "");
-      doc.text(trunc(fp, 24), ML + colW[0] + colW[1] + colW[2] + 6, y + 15);
+      const fileX = ML + colW[0] + colW[1] + colW[2] + 6;
+      fileLines.forEach((line, i) => {
+        doc.text(line, fileX, y + 15 + i * lineH);
+      });
+
+      // Bottom border
       doc.setDrawColor(...LGRAY);
-      doc.line(ML, y + rowH - 2, MR, y + rowH - 2);
-      y += rowH;
+      doc.line(ML, y + dynRowH - 2, MR, y + dynRowH - 2);
+      y += dynRowH;
     }
     y += 8;
   } else {
