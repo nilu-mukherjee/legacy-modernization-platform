@@ -114,14 +114,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     /**
      * Authorized callback — controls whether a request is allowed.
      *
-     * Returns true for all requests (route protection is handled by
-     * middleware instead).
+     * Public routes (landing, login, report sharing) are always allowed.
+     * Signed-in users on /login get redirected to /dashboard.
+     * All other routes require authentication.
      */
     authorized({ auth: sessionAuth, request }) {
       const { pathname } = request.nextUrl;
+      const PUBLIC_PATHS = ["/", "/login"];
+      const isPublic =
+        PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/report/");
+
       if (sessionAuth && pathname === "/login") {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
+      if (isPublic) return true;
       return !!sessionAuth;
     },
   },
