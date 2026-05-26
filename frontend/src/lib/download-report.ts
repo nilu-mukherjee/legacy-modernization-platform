@@ -42,12 +42,33 @@ function trunc(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
+async function fetchAllDebt(projectId: string) {
+  const first = await getDebtItems(projectId, 0, 100).catch(() => null);
+  if (!first) return null;
+  const total = first.total ?? 0;
+  const all = [...(first.debt_items ?? [])];
+  let skip = 100;
+  const MAX_FETCH = 2000;
+  while (skip < total && skip < MAX_FETCH) {
+    const page = await getDebtItems(projectId, skip, 100).catch(() => null);
+    if (!page || !page.debt_items?.length) break;
+    all.push(...page.debt_items);
+    skip += 100;
+  }
+  return {
+    debt_items: all,
+    total,
+    by_severity: first.by_severity,
+    by_category: first.by_category,
+  };
+}
+
 export async function downloadReport(projectId: string): Promise<void> {
   const [{ default: jsPDF }, proj, anal, debtRes, depsRes, recsRes] = await Promise.all([
     import("jspdf"),
     getProject(projectId),
     getAnalysis(projectId).catch(() => null),
-    getDebtItems(projectId, 0, 200).catch(() => null),
+    fetchAllDebt(projectId),
     getDependencies(projectId, 0, 100).catch(() => null),
     getRecommendations(projectId, 0, 20).catch(() => null),
   ]);
