@@ -164,28 +164,30 @@ export default function ProjectsPage() {
                   )}
 
                   {/* Row 1: status · files · LOC · date/time right */}
-                  <div className="flex w-full items-center gap-3 text-xs text-muted-foreground mb-2.5">
-                    <span className={`flex items-center gap-1 font-medium ${color}`}>
-                      <Icon className={`h-3.5 w-3.5${spin ? " animate-spin" : ""}`} />
-                      {label}
-                    </span>
-                    {isAnalyzing ? (
-                      <>
-                        <span className="h-3 w-14 rounded bg-muted animate-pulse" />
-                        <span className="h-3 w-16 rounded bg-muted animate-pulse" />
-                      </>
-                    ) : (
-                      <>
-                        {project.total_files > 0 && (
-                          <span>{project.total_files.toLocaleString()} files</span>
-                        )}
-                        {project.total_loc > 0 && (
-                          <span>{project.total_loc.toLocaleString()} LOC</span>
-                        )}
-                      </>
-                    )}
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className={`flex items-center gap-1 font-medium ${color}`}>
+                        <Icon className={`h-3.5 w-3.5${spin ? " animate-spin" : ""}`} />
+                        {label}
+                      </span>
+                      {isAnalyzing ? (
+                        <>
+                          <span className="h-3 w-14 rounded bg-muted animate-pulse" />
+                          <span className="h-3 w-16 rounded bg-muted animate-pulse" />
+                        </>
+                      ) : (
+                        <>
+                          {project.total_files > 0 && (
+                            <span>{project.total_files.toLocaleString()} files</span>
+                          )}
+                          {project.total_loc > 0 && (
+                            <span>{project.total_loc.toLocaleString()} LOC</span>
+                          )}
+                        </>
+                      )}
+                    </div>
                     {project.created_at && (
-                      <span className="ml-auto shrink-0 inline-flex items-center rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20 whitespace-nowrap">
+                      <span className="shrink-0 inline-flex items-center rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20 whitespace-nowrap">
                         {formatDateTime(project.created_at)}
                       </span>
                     )}
