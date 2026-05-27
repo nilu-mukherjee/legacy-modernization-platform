@@ -58,7 +58,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 9;
   const [loading, setLoading] = useState(true);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
