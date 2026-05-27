@@ -94,6 +94,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
