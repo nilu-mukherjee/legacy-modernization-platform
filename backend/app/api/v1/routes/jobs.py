@@ -11,13 +11,16 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db, async_session_maker
 from app.core.security import get_current_user
 from app.models.job import Job
 from app.models.project import Project
@@ -118,3 +121,59 @@ async def list_project_jobs(
 
     jobs = [JobResponse.model_validate(j) for j in result.scalars().all()]
     return {"jobs": jobs, "total": len(jobs)}
+
+
+@router.get("/{job_id}/stream")
+async def stream_job(
+    job_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream job progress as Server-Sent Events until terminal state."""
+    # Verify ownership once before streaming.
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    proj = await db.execute(
+        select(Project).where(
+            Project.id == job.project_id, Project.user_id == current_user.id
+        )
+    )
+    if proj.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    user_id = current_user.id
+
+    async def event_generator():
+        last_progress = -1
+        # 10-minute timeout (600 polls × 1s)
+        for _ in range(600):
+            async with async_session_maker() as session:
+                r = await session.execute(select(Job).where(Job.id == job_id))
+                j = r.scalar_one_or_none()
+                if j is None:
+                    break
+
+            if j.progress != last_progress:
+                last_progress = j.progress
+                payload = json.dumps({
+                    "progress": j.progress,
+                    "current_step": j.current_step or "",
+                    "status": j.status,
+                })
+                yield f"data: {payload}\n\n"
+
+            if j.status in ("completed", "failed"):
+                break
+
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

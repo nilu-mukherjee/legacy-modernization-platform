@@ -37,7 +37,7 @@ import {
   deleteRecommendation,
 } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
-import { useJobStatus } from "@/hooks/use-job-status";
+import { useSSEJobStatus } from "@/hooks/use-sse-job-status";
 import { Pagination } from "@/components/ui/pagination";
 
 const LANG_COLORS: Record<string, string> = {
@@ -313,7 +313,8 @@ export default function ProjectDetailPage() {
     });
   }
 
-  const { progress, currentStep, isComplete: jobDone } = useJobStatus(activeJobId);
+  const backendToken = (session as any)?.backendToken as string | null ?? null;
+  const { progress, isComplete: jobDone } = useSSEJobStatus(activeJobId, backendToken);
 
   // Reload data when job finishes
   useEffect(() => {
