@@ -15,12 +15,14 @@ function AnimatedNumber({ target, color, active }: { target: number; color: stri
     if (!active) return;
     let frame: number;
     let start: number | null = null;
-    const duration = 1400;
+    const duration = 2800;
 
     const step = (ts: number) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
       setCount(Math.round(eased * target));
       if (progress < 1) frame = requestAnimationFrame(step);
     };
@@ -49,7 +51,7 @@ export function ScoreCards() {
           style={{
             opacity: visible ? 1 : 0,
             transform: visible ? "translateY(0)" : "translateY(10px)",
-            transition: `opacity 0.5s ease ${card.delay}ms, transform 0.5s ease ${card.delay}ms`,
+            transition: `opacity 0.9s ease ${card.delay}ms, transform 0.9s ease ${card.delay}ms`,
           }}
         >
           <div className="text-2xl font-extrabold">
