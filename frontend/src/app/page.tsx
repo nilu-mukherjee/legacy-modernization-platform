@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScoreCards } from "@/components/landing/score-cards";
 import {
   GitBranch,
   Shield,
@@ -251,26 +252,7 @@ export default async function LandingPage() {
             </div>
 
             {/* Animated score cards */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Code Health",        score: 72, color: "#22c55e", delay: "0.5s" },
-                { label: "Modernization Score", score: 45, color: "#f97316", delay: "0.65s" },
-                { label: "Dependency Risk",     score: 28, color: "#ef4444", delay: "0.8s" },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className="glass rounded-xl p-3 text-center"
-                  style={{ animation: `fade-in 0.6s ease-out ${card.delay} both` }}
-                >
-                  <div className="text-2xl font-extrabold" style={{ color: card.color }}>
-                    {card.score}
-                  </div>
-                  <div className="mt-1 text-[10px] leading-tight text-muted-foreground">
-                    {card.label}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ScoreCards />
           </div>
         </div>
       </section>
