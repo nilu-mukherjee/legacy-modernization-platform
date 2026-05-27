@@ -127,6 +127,17 @@ function LanguageBreakdown({ languages }: { languages: Record<string, number> })
   );
 }
 
+function getStageLabel(progress: number): string {
+  if (progress < 15) return "Cloning repository… (0–15%)";
+  if (progress < 25) return "Inventorying files… (15–25%)";
+  if (progress < 45) return "Parsing AST… (25–45%)";
+  if (progress < 60) return "Computing metrics… (45–60%)";
+  if (progress < 70) return "Checking dependencies… (60–70%)";
+  if (progress < 90) return "Running AI analysis… (70–90%)";
+  if (progress < 100) return "Calculating score… (90–100%)";
+  return "Analysis complete";
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -560,7 +571,7 @@ export default function ProjectDetailPage() {
                 ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                 : <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
               }
-              <span className="text-sm font-medium">{currentStep || "Initializing…"}</span>
+              <span className="text-sm font-medium">{getStageLabel(progress)}</span>
             </div>
             <span className="text-sm font-bold text-primary">{progress}%</span>
           </div>
