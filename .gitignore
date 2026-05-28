@@ -65,3 +65,8 @@ repos_temp/
 *.tgz
 
 .vercel
+
+# Local AI assistant context files (not for repo)
+CLAUDE.md
+AGENTS.md
+implementation_plan.md
